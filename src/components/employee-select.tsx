@@ -1,0 +1,1 @@
+export function EmployeeSelect({employees}:{employees:{id:string;full_name:string;code:string}[]}){return <label>Empleado<select name="employee_id" required defaultValue=""><option value="" disabled>Selecciona un empleado</option>{employees.map(e=><option key={e.id} value={e.id}>{e.code} · {e.full_name}</option>)}</select></label>}
