@@ -4,8 +4,8 @@ Base funcional para Gasolinera Río Tempisque, Pueblo Viejo de Nicoya, Costa Ric
 
 ## Qué incluye
 
-- Terminal `/marcacion`: código de empleado y PIN de 6–8 dígitos; entrada, salida, inicio y fin de descanso.
-- `/admin`: resumen, empleados (alta, edición, activación, PIN), asistencia y correcciones, turnos, vacaciones, incapacidades, permisos, preplanilla mensual y auditoría.
+- Terminal `/marcacion`: código de empleado y PIN de 6–8 dígitos; entrada, salida, inicio y fin de descanso. Al confirmar se toma una foto con la cámara del dispositivo como evidencia.
+- `/admin`: resumen, empleados (alta, edición, activación, PIN, cédula, fecha de ingreso), asistencia (filtros, fotos, correcciones), turnos, vacaciones, incapacidades, permisos, preplanilla mensual y auditoría.
 - Cierre con validaciones y bloqueo de conceptos, CSV protegido contra fórmulas e informe imprimible con comprobantes individuales. Se puede guardar el informe como PDF desde el navegador.
 - Supabase Auth con cuentas `admin` y `kiosk`, RLS, PIN con bcrypt en tabla sin acceso API, RPC transaccionales, hora de servidor, eventos inmutables para usuarios de la aplicación, auditoría y control de intentos fallidos.
 - Pruebas de montos y de migraciones/seguridad sobre PostgreSQL embebido PGlite. CI para lint, tipos, pruebas y compilación.
@@ -70,6 +70,14 @@ Copiar URL y clave pública locales a `.env.local`. Crear las dos cuentas usando
 7. Revisar y guardar cada empleado con detalle de conceptos. Resolver ausencias pendientes y jornadas abiertas anteriores al fin del período.
 8. Cerrar después de terminar el mes. Descargar CSV o imprimir/guardar PDF. Los montos ya cerrados no se modifican. El reporte no confirma ni ejecuta pagos.
 
+## Fotos de marcación y retención
+
+Cada marca válida (entrada, salida, inicio/fin de descanso) puede guardar una foto JPEG (~480×360, calidad 0.7; típico 25–50 KB, tope 200 KB) en la tabla `punch_photos`. La cámara no se muestra en pantalla; la foto aparece en la confirmación. Si la cámara no está disponible, la marca se permite y queda con estado `missing` para el administrador. Solo el admin puede ver las fotos vía `/api/fotos/[id]`. La tablet necesita permiso de cámara y HTTPS (o localhost).
+
+**Retención actual (30 días):** no hay un job programado (`pg_cron` ni similar). Al registrar una marca exitosa, `register_punch_with_photo` libera las imágenes con más de 30 días (`status='expired'`, `image=null`). Si nadie marca durante un tiempo, las fotos viejas permanecen hasta la siguiente marca válida.
+
+**Decisión pendiente:** dejar esta limpieza “al marcar” o reemplazarla por un cron diario/mensual en Supabase (`pg_cron` o Edge Function programada) para que el espacio se libere aunque la tablet esté inactiva.
+
 ## Controles del kiosco
 
 Cuenta exclusiva de tablet, fila `devices.active=true`, hora `clock_timestamp()` de PostgreSQL y UUID idempotente por evento. Se serializan operaciones por dispositivo/empleado. Diez PIN inválidos bloquean esa terminal hasta completar la ventana de 15 minutos; el contador se conserva incluso cuando la operación devuelve un error. No se registran PIN en auditoría. Los empleados no tienen cuentas Supabase en esta versión.
@@ -97,17 +105,18 @@ src/app/                    Rutas, panel y Server Actions
 src/app/marcacion/           Terminal de tablet
 src/app/admin/              Administración y reporte imprimible
 src/app/api/reportes/       Exportación CSV autenticada
+src/app/api/fotos/          Entrega de fotos de marcación (solo admin)
 src/lib/                    Auth, Supabase, schemas, importes y formatos
 src/components/             Formularios y elementos compartidos
 supabase/migrations/        Esquema, RLS, funciones, auditoría y controles
 supabase/bootstrap.example.sql  Asignación inicial de roles y dispositivo
 supabase/config.toml        Configuración de desarrollo local
- tests/                     Pruebas unitarias y PostgreSQL
+tests/                      Pruebas unitarias y PostgreSQL
 .github/workflows/ci.yml     Verificación automática
 ```
 
 ## Antes de producción
 
-Probar un período completo en paralelo con la planilla actual y el contador. Configurar HTTPS, acceso administrativo individual, respaldo y recuperación probados en Supabase, actualización de dependencias y política de retención/acceso para información laboral. No usar datos médicos detallados en observaciones. Validar comportamiento real en la tablet y manejo de cortes de internet. Configurar protección de inicio de sesión de Supabase y considerar MFA para administradores.
+Probar un período completo en paralelo con la planilla actual y el contador. Configurar HTTPS, acceso administrativo individual, respaldo y recuperación probados en Supabase, actualización de dependencias y política de retención/acceso para información laboral (incluye fotos de marcación; ver sección de retención). No usar datos médicos detallados en observaciones. Validar comportamiento real en la tablet (cámara, permisos) y manejo de cortes de internet. Configurar protección de inicio de sesión de Supabase y considerar MFA para administradores. Decidir si la limpieza de fotos se mantiene “al marcar” o pasa a un cron.
 
 Esta entrega no crea un proyecto remoto, no aplica migraciones a una cuenta ni publica la aplicación: se requiere configurar el proyecto Supabase del propietario y el entorno de ejecución de Next.js.
