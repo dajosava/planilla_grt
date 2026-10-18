@@ -26,7 +26,15 @@ export function Kiosk(){
  useEffect(()=>{let cancelled=false;
   requestCamera().then(async s=>{if(cancelled){s.getTracks().forEach(t=>t.stop());return}await attach(s);setCamera("ready")}).catch(()=>{if(!cancelled)setCamera("unavailable")});
   return()=>{cancelled=true;stream.current?.getTracks().forEach(t=>t.stop());stream.current=null}},[]);
- useEffect(()=>{const tick=()=>setClock(new Intl.DateTimeFormat("es-CR",{timeZone:"America/Costa_Rica",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(new Date()));tick();const id=setInterval(tick,1000);return ()=>clearInterval(id)},[]);
+ useEffect(()=>{
+  const tick=()=>{
+   const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/Costa_Rica",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true}).formatToParts(new Date());
+   const get=(t:string)=>parts.find(p=>p.type===t)?.value??"";
+   const suffix=/^a/i.test(get("dayPeriod"))?"a.m.":"p.m.";
+   setClock(`${get("hour")}:${get("minute")}:${get("second")} ${suffix}`);
+  };
+  tick();const id=setInterval(tick,1000);return ()=>clearInterval(id);
+ },[]);
  useEffect(()=>{if(!open)return;const id=setTimeout(()=>setMessage({}),message.ok?6000:10000);const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape")setMessage({})};window.addEventListener("keydown",onKey);return()=>{clearTimeout(id);window.removeEventListener("keydown",onKey)}},[open,message.ok]);
  async function submit(e:React.FormEvent){e.preventDefault();if(submitting.current)return;
  if(!navigator.onLine){setMessage({error:"Sin conexión. No se ha registrado la marca. Comunícate con el administrador."});return;}
@@ -39,7 +47,7 @@ export function Kiosk(){
  catch{setMessage({error:"No se confirmó la marcación. Reintenta con los mismos datos."});}
  finally{submitting.current=false;setBusy(false);}
  }
- return <main className="kiosk"><video ref={video} className="camera-feed" playsInline muted aria-hidden="true"/><div className="kiosk-body">
+ return <main className="kiosk kiosk-light"><video ref={video} className="camera-feed" playsInline muted aria-hidden="true"/><div className="kiosk-body">
  <div className="kiosk-brand">
   <img src="/logo-grt.png" alt="Gasolinera Río Tempisque" className="kiosk-logo" width={160} height={90} decoding="async"/>
  </div>
