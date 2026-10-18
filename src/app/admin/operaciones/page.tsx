@@ -50,6 +50,12 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  return <>
   <Heading title="Dashboard de operaciones" description="Cumplimiento de tareas diarias, estados, áreas y responsables. Filtra por fechas para ver el periodo."/>
 
+  <nav className="ops-nav-bar" aria-label="Módulos de operaciones">
+   <Link className="button" href="/admin/operaciones/plantillas">Plantillas</Link>
+   <Link className="button" href="/admin/operaciones/tareas">Todas las tareas</Link>
+   <Link className="button" href="/admin/incidentes">Incidentes</Link>
+  </nav>
+
   <Panel title="Filtro de fechas">
    <form className="filters ops-dash-filters" method="get">
     <label>Desde<input type="date" name="desde" defaultValue={from} required/></label>
@@ -102,7 +108,5 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
     </tr>;
    })}</Table>}
   </Panel>
-
-  <p className="muted small"><Link href="/admin/operaciones/plantillas">Plantillas</Link> · <Link href="/admin/operaciones/tareas">Todas las tareas</Link> · <Link href="/admin/incidentes">Incidentes</Link></p>
  </>;
 }

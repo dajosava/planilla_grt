@@ -1,7 +1,7 @@
 {
   "name": "rio-tempisque",
   "version": "0.1.0",
-  "description": "Sistema de asistencia y preplanilla R\u00edo Tempisque",
+  "description": "Sistema de asistencia y preplanilla Río Tempisque",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

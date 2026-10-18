@@ -1,7 +1,7 @@
 const STATUS_COLORS:Record<string,string>={
- pending:"#c4a35a",
- in_progress:"#3b82a0",
- completed:"#5b8c7a",
+ pending:"#E67E22",
+ in_progress:"#E8B923",
+ completed:"#08766d",
  approved:"#08766d",
  rejected:"#b54a4a",
 };
