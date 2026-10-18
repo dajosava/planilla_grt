@@ -30,7 +30,7 @@ export function Kiosk(){
   const tick=()=>{
    const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/Costa_Rica",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true}).formatToParts(new Date());
    const get=(t:string)=>parts.find(p=>p.type===t)?.value??"";
-   const suffix=/^a/i.test(get("dayPeriod"))?"a.m.":"p.m.";
+   const suffix=/^a/i.test(get("dayPeriod"))?"a. m.":"p. m.";
    setClock(`${get("hour")}:${get("minute")}:${get("second")} ${suffix}`);
   };
   tick();const id=setInterval(tick,1000);return ()=>clearInterval(id);
