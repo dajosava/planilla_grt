@@ -1,6 +1,7 @@
 import {requireRole} from "@/lib/auth";
 import {Heading,Panel,Empty,Table,CollapsiblePanel} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
+import {OpsNavBar} from "@/components/ops-nav-bar";
 import {saveTemplate} from "../../ops-actions";
 import {OPS_AREAS} from "@/lib/ops";
 
@@ -24,6 +25,7 @@ export default async function Page(){
  const staff=(employees??[]) as Emp[];
  return <>
   <Heading title="Plantillas de operaciones" description="Define checklists recurrentes y, si quieres, el empleado que las recibirá cada día. Antepones ! a un ítem para exigir foto."/>
+  <OpsNavBar/>
   <Panel title="Plantillas activas">{!templates?.length?<Empty/>:<Table headers={["Título","Área","Recurrencia","Asignado","Ítems","Estado"]}>{templates.map(t=>{
    const items=Array.isArray(t.task_template_items)?t.task_template_items:[];
    const assignee=t.assignee as Emp|null;

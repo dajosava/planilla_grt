@@ -1,31 +1,18 @@
-import Link from "next/link";
 import {requireRole} from "@/lib/auth";
 import {logout} from "@/app/login/actions";
-import {AdminNav} from "@/components/admin-nav";
+import {AdminShell} from "@/components/layout/admin-shell";
 
 export const dynamic="force-dynamic";
 
 export default async function Layout({children}:{children:React.ReactNode}){
- const {profile}=await requireRole("admin");
- return <div className="shell">
-  <aside className="sidebar">
-   <Link href="/" className="brand">
-    <div className="brand-mark">GRT</div>
-    <div><strong>Gasolinera Río Tempisque</strong><span>Gestión de personal</span></div>
-   </Link>
-   <AdminNav/>
-   <div className="sidebar-footer">
-    <strong>{profile.display_name}</strong>
-    <span>Administrador</span>
-    <form action={logout}><button className="secondary">Cerrar sesión</button></form>
-   </div>
-  </aside>
-  <div className="workspace">
-   <header className="topbar">
-    <span>Gasolinera · Supermercado · Tienda · Transporte</span>
-    <span className="badge">Costa Rica</span>
-   </header>
-   <main className="content">{children}</main>
-  </div>
- </div>;
+ const {client,profile}=await requireRole("admin");
+ let late=0,incidents=0;
+ try{
+  const [a,b]=await Promise.all([
+   client.from("tasks").select("id",{count:"exact",head:true}).in("status",["pending","in_progress"]).lt("due_at",new Date().toISOString()),
+   client.from("incidents").select("id",{count:"exact",head:true}).in("status",["open","assigned"]).eq("severity","critical"),
+  ]);
+  late=a.count??0;incidents=b.count??0;
+ }catch{/* ops tables may be missing */}
+ return <AdminShell displayName={profile.display_name||"Administrador"} logoutAction={logout} badges={{late,incidents}}>{children}</AdminShell>;
 }

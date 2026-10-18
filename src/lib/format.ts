@@ -2,6 +2,21 @@ export const money = (cents: number) => new Intl.NumberFormat("es-CR", { style: 
 export const dateTime = (date: string) => new Intl.DateTimeFormat("es-CR", {timeZone:"America/Costa_Rica", dateStyle:"short",timeStyle:"short"}).format(new Date(date));
 export const todayCR = () => new Intl.DateTimeFormat("en-CA", {timeZone:"America/Costa_Rica",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 export const dateOnly = (date: string) => new Intl.DateTimeFormat("es-CR", {timeZone:"UTC", dateStyle:"medium"}).format(new Date(date+"T00:00:00Z"));
+
+/** Hora fija America/Costa_Rica — evita mismatch de hidratación (NBSP vs espacio en "a. m."). */
+export function timeOnly(iso: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Costa_Rica",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(new Date(iso));
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+  const period = parts.find((p) => p.type === "dayPeriod")?.value ?? "AM";
+  const suffix = /^a/i.test(period) ? "a. m." : "p. m.";
+  return `${hour}:${minute} ${suffix}`;
+}
 export const cedula = (value: string | null | undefined) => {
  if(!value) return "Sin cédula";
  const digits=value.replace(/\D/g,"");

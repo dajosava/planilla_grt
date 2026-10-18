@@ -1,6 +1,7 @@
 import {requireRole} from "@/lib/auth";
 import {Heading,Panel,Empty,Table} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
+import {OpsNavBar} from "@/components/ops-nav-bar";
 import {assignTask,reviewTask} from "../../ops-actions";
 import {dateTime,todayCR} from "@/lib/format";
 
@@ -21,6 +22,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const staff=(employees??[]) as Emp[];
  return <>
   <Heading title="Tareas" description="Asigna cada tarea a un empleado. En la tablet solo verá las suyas. Luego aprueba o rechaza las completadas."/>
+  <OpsNavBar/>
   <Panel title="Filtro"><form className="filters" method="get"><label>Fecha<input type="date" name="fecha" defaultValue={day}/></label><button>Filtrar</button></form></Panel>
   <Panel title={`Tareas del ${day}`}>{!data?.length?<Empty text="No hay tareas. Genera desde Operaciones o crea plantillas."/>:<Table headers={["Tarea","Área","Estado","Asignado","Vence","Acción"]}>{data.map(t=>{
    const items=Array.isArray(t.task_checklist_items)?(t.task_checklist_items as Item[]):[];
