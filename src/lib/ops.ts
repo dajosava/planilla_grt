@@ -36,5 +36,5 @@ export type OpsDashboard={
 
 export type OpsTask={
  id:string;title:string;area:string;status:string;due_at:string;run_date:string;
- checklist:{id:string;label:string;done:boolean;requires_photo:boolean}[]|null;
+ checklist:{id:string;label:string;done:boolean;requires_photo:boolean;for_bitacora?:boolean}[]|null;
 };

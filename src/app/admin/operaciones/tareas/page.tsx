@@ -1,8 +1,10 @@
 import {requireRole} from "@/lib/auth";
 import {Heading,Panel,CollapsiblePanel,Empty,Table} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
+import {ChecklistEditor} from "@/components/checklist-editor";
 import {OpsNavBar} from "@/components/ops-nav-bar";
-import {assignTask,reviewTask} from "../../ops-actions";
+import {assignTask,createAdHocTask,reviewTask} from "../../ops-actions";
+import {OPS_AREAS} from "@/lib/ops";
 import {dateTime,todayCR} from "@/lib/format";
 
 const statusLabel:Record<string,string>={pending:"Pendiente",in_progress:"En progreso",completed:"Completada",approved:"Aprobada",rejected:"Rechazada"};
@@ -23,14 +25,29 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  return <>
   <Heading title="Tareas" description="Asigna cada tarea a un empleado. En la tablet solo verá las suyas. Luego aprueba o rechaza las completadas."/>
   <OpsNavBar/>
+  <CollapsiblePanel title="Tarea ocasional">
+   <p className="muted small">Para trabajos de una sola vez (no se repiten). Cámara = foto obligatoria. Bitácora = queda para posible impresión.</p>
+   <ActionForm action={createAdHocTask} submit="Crear tarea ocasional">
+    <label>Título<input name="title" required minLength={3} maxLength={120} placeholder="Ej. Revisar fuga reportada en pista 2"/></label>
+    <label>Área<select name="area">{OPS_AREAS.map(a=><option key={a}>{a}</option>)}</select></label>
+    <label>Fecha<input name="run_date" type="date" defaultValue={day} required/></label>
+    <label>Vence (minutos desde medianoche CR)<input name="due_offset_minutes" type="number" defaultValue={720} min={5} max={1440} required/></label>
+    <label>Asignar a<select name="assignee" defaultValue="">
+     <option value="">Sin asignar</option>
+     {staff.map(e=><option key={e.id} value={e.id}>{e.full_name} ({e.code})</option>)}
+    </select></label>
+    <ChecklistEditor/>
+   </ActionForm>
+  </CollapsiblePanel>
   <CollapsiblePanel title="Filtro"><form className="filters" method="get"><label>Fecha<input type="date" name="fecha" defaultValue={day}/></label><button>Filtrar</button></form></CollapsiblePanel>
-  <Panel title={`Tareas del ${day}`}>{!data?.length?<Empty text="No hay tareas. Genera desde Operaciones o crea plantillas."/>:<Table headers={["Tarea","Área","Estado","Asignado","Vence","Acción"]}>{data.map(t=>{
+  <Panel title={`Tareas del ${day}`}>{!data?.length?<Empty text="No hay tareas. Generá desde Operaciones, usá plantillas o creá una tarea ocasional."/>:<Table headers={["Tarea","Área","Estado","Asignado","Vence","Acción"]}>{data.map(t=>{
    const items=Array.isArray(t.task_checklist_items)?(t.task_checklist_items as Item[]):[];
    const done=items.filter((i:Item)=>i.done).length;
    const assignee=t.assignee as Emp|null;
    const canAssign=["pending","in_progress","rejected"].includes(t.status);
+   const adHoc=!t.template_id;
    return <tr key={t.id}>
-    <td><strong>{t.title}</strong><small>{done}/{items.length} ítems{(t.completed as {full_name?:string}|null)?.full_name?` · completó ${(t.completed as {full_name:string}).full_name}`:""}</small></td>
+    <td><strong>{t.title}</strong><small>{adHoc?"Ocasional · ":""}{done}/{items.length} ítems{(t.completed as {full_name?:string}|null)?.full_name?` · completó ${(t.completed as {full_name:string}).full_name}`:""}</small></td>
     <td>{t.area}</td>
     <td><span className={`badge${t.status==="rejected"||(t.status==="pending"&&new Date(t.due_at)<new Date())?" danger":""}`}>{statusLabel[t.status]??t.status}</span></td>
     <td>{canAssign?<ActionForm action={assignTask} submit="Asignar">

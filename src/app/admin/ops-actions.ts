@@ -13,6 +13,20 @@ function dbError(error:{message:string;code?:string}|null){
  if(error)throw new Error(error.code==="P0001"?error.message:"No se pudo guardar. Revisa los datos.");
 }
 
+const checklistItemSchema=z.object({
+ label:z.string().trim().min(2).max(200),
+ requires_photo:z.boolean(),
+ for_bitacora:z.boolean(),
+});
+
+function parseChecklist(form:FormData){
+ const raw=String(form.get("items_json")||"[]");
+ let parsed:unknown;
+ try{parsed=JSON.parse(raw)}catch{throw new Error("Checklist inválido.");}
+ const items=z.array(checklistItemSchema).min(1,"Agrega al menos un ítem del checklist.").parse(parsed);
+ return items;
+}
+
 export async function saveTemplate(_:ActionState,form:FormData):Promise<ActionState>{
  const {client}=await requireRole("admin");
  try{
@@ -22,12 +36,7 @@ export async function saveTemplate(_:ActionState,form:FormData):Promise<ActionSt
   const recurrence=z.enum(["daily","weekdays","once"]).parse(form.get("recurrence"));
   const due_offset=z.coerce.number().int().min(5).max(1440).parse(form.get("due_offset_minutes"));
   const active=form.get("active")==="on"||form.get("active")==="true";
-  const raw=String(form.get("items")||"").split("\n").map(l=>l.trim()).filter(Boolean);
-  if(!raw.length)throw new Error("Agrega al menos un ítem del checklist.");
-  const items=raw.map(line=>{
-   const photo=line.startsWith("!");
-   return {label:photo?line.slice(1).trim():line,requires_photo:photo};
-  });
+  const items=parseChecklist(form);
   const assigneeRaw=String(form.get("assignee")||"");
   const assignee=assigneeRaw&&z.uuid().safeParse(assigneeRaw).success?assigneeRaw:null;
   const {error}=await client.rpc("ops_upsert_template",{
@@ -39,6 +48,31 @@ export async function saveTemplate(_:ActionState,form:FormData):Promise<ActionSt
   revalidatePath("/admin/operaciones");
   revalidatePath("/admin/operaciones/plantillas");
   return {success:"Plantilla guardada."};
+ }catch(e){return failure(e)}
+}
+
+export async function createAdHocTask(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const title=z.string().trim().min(3).max(120).parse(form.get("title"));
+  const area=z.enum(OPS_AREAS).parse(form.get("area"));
+  const runDate=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).parse(form.get("run_date"));
+  const dueOffset=z.coerce.number().int().min(5).max(1440).parse(form.get("due_offset_minutes"));
+  const items=parseChecklist(form);
+  const assigneeRaw=String(form.get("assignee")||"");
+  const assignee=assigneeRaw&&z.uuid().safeParse(assigneeRaw).success?assigneeRaw:null;
+  const {error}=await client.rpc("ops_create_ad_hoc_task",{
+   p_title:title,
+   p_area:area,
+   p_run_date:runDate,
+   p_due_offset:dueOffset,
+   p_assignee:assignee,
+   p_items:items,
+  });
+  dbError(error);
+  revalidatePath("/admin/operaciones");
+  revalidatePath("/admin/operaciones/tareas");
+  return {success:"Tarea ocasional creada."};
  }catch(e){return failure(e)}
 }
 

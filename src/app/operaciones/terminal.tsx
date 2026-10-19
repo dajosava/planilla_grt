@@ -2,7 +2,7 @@
 import {useRef,useState} from "react";
 import {useRouter} from "next/navigation";
 import {ActionForm} from "@/components/action-form";
-import {Camera,CameraOff,ClipboardCheck,LogOut,TriangleAlert} from "lucide-react";
+import {Camera,CameraOff,ClipboardCheck,LogOut,NotebookPen,TriangleAlert} from "lucide-react";
 import {completeTask,endOpsSession,reportIncident,startOpsSession,toggleChecklist} from "./actions";
 import type {OpsTask} from "@/lib/ops";
 
@@ -51,7 +51,7 @@ export function OpsTerminal({needsLogin,tasks,employeeName}:Props){
      const needPhoto=(t.checklist??[]).some(c=>c.requires_photo);
      return <section key={t.id} className="panel ops-task"><button type="button" className="ops-task-head" onClick={()=>setActive(open?null:t.id)}><strong>{t.title}</strong><span className="badge">{t.status}</span></button>
       {open&&<div className="ops-task-body"><p className="muted small">{t.area} · vence {new Date(t.due_at).toLocaleTimeString("es-CR",{hour:"2-digit",minute:"2-digit"})}</p>
-       <ul className="ops-check">{(t.checklist??[]).map(c=><li key={c.id}><form action={toggleChecklist}><input type="hidden" name="id" value={c.id}/><input type="hidden" name="done" value={String(!c.done)}/><button type="submit" className={c.done?"selected":"secondary"} disabled={t.status==="completed"||t.status==="approved"}>{c.done?"✓":"○"} {c.label}{c.requires_photo?" 📷":""}</button></form></li>)}</ul>
+       <ul className="ops-check">{(t.checklist??[]).map(c=><li key={c.id}><form action={toggleChecklist}><input type="hidden" name="id" value={c.id}/><input type="hidden" name="done" value={String(!c.done)}/><button type="submit" className={c.done?"selected":"secondary"} disabled={t.status==="completed"||t.status==="approved"}>{c.done?"✓":"○"} {c.label}{c.requires_photo?<> <Camera size={14} aria-label="Requiere foto"/></>:null}{c.for_bitacora?<> <NotebookPen size={14} aria-label="Bitácora"/></>:null}</button></form></li>)}</ul>
        {t.status!=="completed"&&t.status!=="approved"&&<CompleteForm taskId={t.id} needPhoto={needPhoto} busy={busy} setBusy={setBusy} setMsg={setMsg} ensureCam={ensureCam} capture={capture} cam={cam} onDone={()=>router.refresh()}/>}
       </div>}
      </section>;
