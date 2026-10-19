@@ -1,20 +1,22 @@
 import Link from "next/link";
-import {Users,Wallet,Shield,Receipt,CheckCircle2} from "lucide-react";
+import {Users,Wallet,Shield,Receipt,CheckCircle2,AlarmClock} from "lucide-react";
 import {requireRole} from "@/lib/auth";
 import {Heading,Panel,CollapsiblePanel,Table,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
 import {KpiCard} from "@/components/ui/kpi-card";
 import {Badge} from "@/components/ui/badge";
 import {PayrollFlow,payrollActiveIndex} from "@/components/payroll-flow";
-import {createPayroll,updatePayroll,closePayroll} from "../actions";
+import {createPayroll,updatePayroll,closePayroll,syncPayrollOt,approvePayrollOt,rejectPayrollOt} from "../actions";
 import {COMPANIES,parseCompany} from "@/lib/companies";
-import {money,labels,todayCR} from "@/lib/format";
+import {money,labels,todayCR,dateOnly} from "@/lib/format";
 import {labelFortnight} from "@/lib/payroll";
 
 function periodLabel(run:{period_start:string;period_end:string;kind?:string|null;status:string}){
  if(run.kind==="fortnight")return `${labelFortnight(run.period_start,run.period_end)} · ${labels[run.status]}`;
  return `${run.period_start.slice(0,7)} · ${labels[run.status]}`;
 }
+
+type OtDay={work_date:string;worked_hours:number;ot_hours:number};
 
 export default async function Page({searchParams}:{searchParams:Promise<{run?:string;empresa?:string}>}){
  const {client}=await requireRole("admin");
@@ -23,8 +25,10 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
  const {data:runs,error}=await client.from("payroll_runs").select("*").eq("company",company).order("period_start",{ascending:false});
  if(error)throw new Error("No se pudo cargar la planilla");
  const selected=runs?.find(r=>r.id===params.run)??runs?.[0];
- const {data:items,error:itemError}=selected?await client.from("payroll_items").select("*").eq("run_id",selected.id).order("employee_name"):{data:[],error:null};
- if(itemError)throw new Error("No se pudieron cargar los conceptos");
+ const {data:items,error:itemError}=selected
+  ?await client.from("payroll_items").select("*,payroll_ot_days(work_date,worked_hours,ot_hours)").eq("run_id",selected.id).order("employee_name")
+  :{data:[],error:null};
+ if(itemError)throw new Error("No se pudieron cargar los conceptos. Si acabás de migrar OT, recargá la página.");
 
  const list=items??[];
  const count=list.length;
@@ -35,7 +39,9 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
  const totalExtras=list.reduce((s,i)=>s+Number(i.ot_amount_cents??0)+Number(i.double_amount_cents??0)+Number(i.other_pay_cents??0),0);
  const totalCcss=list.reduce((s,i)=>s+Number(i.ccss_cents??0),0);
  const totalOtherDed=list.reduce((s,i)=>s+Number(i.shortage_cents??0)+Number(i.receipt_cents??0)+Number(i.other_deduction_cents??0),0);
- const hasExtras=totalExtras>0;
+ const pendingOt=list.filter(i=>i.ot_status==="pending");
+ const pendingOtHours=pendingOt.reduce((s,i)=>s+Number(i.suggested_ot_hours??0),0);
+ const hasExtras=totalExtras>0||pendingOt.length>0;
  const hasManualDeductions=totalOtherDed>0;
  const isDraft=selected?.status==="draft";
  const isClosed=selected?.status==="closed";
@@ -52,7 +58,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
  return <>
   <Heading
    title="Planilla quincenal"
-   description="Tres planillas separadas: Gasolinera, Supermercado y Transporte."
+   description="Tres planillas separadas: Gasolinera, Supermercado y Transporte. Horas >8/día se proponen como extras para tu aprobación."
    actions={<Link className="button secondary" href="/admin/empleados">Ver empleados</Link>}
   />
 
@@ -65,7 +71,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
   <PayrollFlow activeIndex={activeIndex}/>
 
   <CollapsiblePanel title={`1 · Crear quincena · ${company}`} open={!selected}>
-   <p className="muted small">Solo incluye empleados activos de <strong>{company}</strong>. Adelanto = salario/2 y CCSS 10.83%.</p>
+   <p className="muted small">Solo incluye empleados activos de <strong>{company}</strong>. Adelanto = salario/2 y CCSS 10.83%. Las horas extra se calculan desde asistencia y quedan pendientes de aprobar.</p>
    <ActionForm action={createPayroll} submit={`Crear quincena · ${company}`}>
     <input type="hidden" name="company" value={company}/>
     <label>Mes<input name="month" type="month" defaultValue={todayCR().slice(0,7)} required/></label>
@@ -86,11 +92,23 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
     <Badge tone={isClosed?"approved":"pending"}>{labels[selected.status]}</Badge>
    </p>
 
+   {isDraft&&pendingOt.length>0&&(
+    <div className="alert error" role="alert">
+     <strong>⚠ Horas extra pendientes de aprobar:</strong>{" "}
+     {pendingOt.length} empleado(s) · {pendingOtHours.toFixed(2)} h sugeridas desde asistencia (&gt;8 h/día).
+     No podés cerrar la quincena hasta aprobarlas o rechazarlas.
+    </div>
+   )}
+
    <div className="stats">
     <KpiCard
      label="Empleados en nómina" value={count} tone="navy" icon={<Users size={18}/>}
      sub={<>{reviewed} de {count} revisados · {reviewPct}%</>}
      progress={reviewPct}
+    />
+    <KpiCard
+     label="Extras por aprobar" value={pendingOt.length} tone={pendingOt.length?"danger":"navy"} icon={<AlarmClock size={18}/>}
+     sub={pendingOt.length?`${pendingOtHours.toFixed(2)} h sugeridas`:"Sin pendientes"}
     />
     <KpiCard
      label="Neto a pagar" value={money(totalNet)} tone="green" icon={<Wallet size={18}/>}
@@ -113,14 +131,18 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
       {list.map(i=>{
        const extras=Number(i.ot_amount_cents??0)+Number(i.double_amount_cents??0)+Number(i.other_pay_cents??0);
        const otherDed=Number(i.shortage_cents??0)+Number(i.receipt_cents??0)+Number(i.other_deduction_cents??0);
+       const otPending=i.ot_status==="pending";
        return <tr key={i.id}>
-        <td><strong>{i.employee_name}</strong><small>{i.employee_code} · {money(i.hourly_rate_cents??0)}/h</small></td>
+        <td><strong>{i.employee_name}</strong><small>{i.employee_code} · {money(i.hourly_rate_cents??0)}/h{otPending?` · ${Number(i.suggested_ot_hours).toFixed(2)} h extra por aprobar`:""}</small></td>
         <td>{money(i.base_cents)}</td>
-        <td>{money(extras)}</td>
+        <td>{money(extras)}{otPending?<small className="text-danger"> pendiente</small>:null}</td>
         <td>{money(i.ccss_cents??0)}{i.exempt_from_ccss?<small> exento</small>:null}</td>
         <td>{money(otherDed)}</td>
         <td><strong className="tabular">{money(i.net_cents)}</strong></td>
-        <td><Badge tone={i.reviewed?"approved":"pending"}>{i.reviewed?"Revisado":"Pendiente"}</Badge></td>
+        <td>
+         {otPending?<Badge tone="danger">Extra por aprobar</Badge>:
+          <Badge tone={i.reviewed?"approved":"pending"}>{i.reviewed?"Revisado":"Pendiente"}</Badge>}
+        </td>
        </tr>;
       })}
      </Table>
@@ -129,30 +151,77 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
 
    {isDraft?<>
     <CollapsiblePanel title="3 · Capturar extras y deducciones" open>
-     <p className="muted small">Abrí cada empleado, cargá horas extra/doble y faltantes o facturas. La CCSS se recalcula sola sobre el adelanto.</p>
-     {list.map(i=><details key={i.id} className="payroll-emp-edit">
-      <summary>
-       <span>{i.employee_name}</span>
-       <strong className="tabular">{money(i.net_cents)}</strong>
-       <Badge tone={i.reviewed?"approved":"pending"}>{i.reviewed?"✓":"…"}</Badge>
-      </summary>
-      <p className="muted small">Adelanto {money(i.base_cents)} · Valor hora {money(i.hourly_rate_cents??0)}{i.exempt_from_ccss?" · Exento CCSS":""}</p>
-      <ActionForm action={updatePayroll}>
-       <input name="id" type="hidden" value={i.id}/>
-       <label>Horas extra (1.5×)<input name="ot_hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.ot_hours??0)}/></label>
-       <label>Horas doble (2×)<input name="double_hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.double_hours??0)}/></label>
-       <label>Otros pagos (CRC)<input name="other_pay" type="number" min="0" step="0.01" defaultValue={(Number(i.other_pay_cents??0))/100}/></label>
-       <label>Faltantes pista (CRC)<input name="shortage" type="number" min="0" step="0.01" defaultValue={(Number(i.shortage_cents??0))/100}/></label>
-       <label>Facturas / recibos (CRC)<input name="receipt" type="number" min="0" step="0.01" defaultValue={(Number(i.receipt_cents??0))/100}/></label>
-       <label>Otras deducciones (CRC)<input name="other_deduction" type="number" min="0" step="0.01" defaultValue={(Number(i.other_deduction_cents??0))/100}/></label>
-       <label>Notas<textarea name="note" maxLength={2000} defaultValue={i.note??""}/></label>
-       <label className="checkbox"><input name="reviewed" type="checkbox" defaultChecked={!!i.reviewed}/>Marcar como revisado</label>
+     <div className="button-row" style={{marginBottom:12}}>
+      <ActionForm action={syncPayrollOt} submit="Actualizar extras desde asistencia">
+       <input type="hidden" name="id" value={selected.id}/>
       </ActionForm>
-     </details>)}
+      <p className="muted small">Suma jornadas cerradas del período; lo que pase de 8 h/día se propone como hora extra (1.5×) para tu aprobación.</p>
+     </div>
+
+     {list.map(i=>{
+      const days=((i.payroll_ot_days??[]) as OtDay[]).slice().sort((a,b)=>a.work_date.localeCompare(b.work_date));
+      const otPending=i.ot_status==="pending";
+      const otApproved=i.ot_status==="approved";
+      const otRejected=i.ot_status==="rejected";
+      return <details key={i.id} className={`payroll-emp-edit${otPending?" ot-pending":""}`} open={otPending||undefined}>
+       <summary>
+        <span>{i.employee_name}</span>
+        <strong className="tabular">{money(i.net_cents)}</strong>
+        {otPending?<Badge tone="danger">Extra {Number(i.suggested_ot_hours).toFixed(2)} h</Badge>:
+         otApproved?<Badge tone="approved">OT aprobadas</Badge>:
+         otRejected?<Badge tone="pending">OT rechazadas</Badge>:
+         <Badge tone={i.reviewed?"approved":"pending"}>{i.reviewed?"✓":"…"}</Badge>}
+       </summary>
+       <p className="muted small">Adelanto {money(i.base_cents)} · Valor hora {money(i.hourly_rate_cents??0)}{i.exempt_from_ccss?" · Exento CCSS":""}</p>
+
+       {otPending&&(
+        <div className="alert" role="status">
+         <strong>Sugerido desde asistencia:</strong> {Number(i.suggested_ot_hours).toFixed(2)} h extra
+         {days.length>0&&(
+          <ul className="ot-day-list">
+           {days.map(d=>(
+            <li key={d.work_date}>{dateOnly(d.work_date)}: trabajó {Number(d.worked_hours).toFixed(2)} h → extra {Number(d.ot_hours).toFixed(2)} h</li>
+           ))}
+          </ul>
+         )}
+         <div className="row-actions" style={{marginTop:10}}>
+          <ActionForm action={approvePayrollOt} submit={`Aprobar ${Number(i.suggested_ot_hours).toFixed(2)} h`}>
+           <input type="hidden" name="id" value={i.id}/>
+          </ActionForm>
+          <ActionForm action={approvePayrollOt} submit="Aprobar con ajuste">
+           <input type="hidden" name="id" value={i.id}/>
+           <label>Horas a pagar<input name="hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.suggested_ot_hours)} required/></label>
+          </ActionForm>
+          <ActionForm action={rejectPayrollOt} submit="Rechazar extras">
+           <input type="hidden" name="id" value={i.id}/>
+          </ActionForm>
+         </div>
+        </div>
+       )}
+
+       {(otApproved||otRejected)&&days.length>0&&(
+        <p className="muted small">Detalle asistencia: {days.map(d=>`${dateOnly(d.work_date)} ${Number(d.ot_hours).toFixed(2)}h`).join(" · ")}</p>
+       )}
+
+       <ActionForm action={updatePayroll}>
+        <input name="id" type="hidden" value={i.id}/>
+        <label>Horas extra (1.5×)<input name="ot_hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.ot_hours??0)}/><small className="muted">Si las editás manualmente se consideran aprobadas.</small></label>
+        <label>Horas doble (2×)<input name="double_hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.double_hours??0)}/></label>
+        <label>Otros pagos (CRC)<input name="other_pay" type="number" min="0" step="0.01" defaultValue={(Number(i.other_pay_cents??0))/100}/></label>
+        <label>Faltantes pista (CRC)<input name="shortage" type="number" min="0" step="0.01" defaultValue={(Number(i.shortage_cents??0))/100}/></label>
+        <label>Facturas / recibos (CRC)<input name="receipt" type="number" min="0" step="0.01" defaultValue={(Number(i.receipt_cents??0))/100}/></label>
+        <label>Otras deducciones (CRC)<input name="other_deduction" type="number" min="0" step="0.01" defaultValue={(Number(i.other_deduction_cents??0))/100}/></label>
+        <label>Notas<textarea name="note" maxLength={2000} defaultValue={i.note??""}/></label>
+        <label className="checkbox"><input name="reviewed" type="checkbox" defaultChecked={!!i.reviewed}/>Marcar como revisado</label>
+       </ActionForm>
+      </details>;
+     })}
     </CollapsiblePanel>
 
-    <CollapsiblePanel title="4 · Cerrar y pagar" open={reviewed===count&&count>0}>
-     {reviewed<count?(
+    <CollapsiblePanel title="4 · Cerrar y pagar" open={reviewed===count&&count>0&&pendingOt.length===0}>
+     {pendingOt.length>0?(
+      <p className="alert error">Hay {pendingOt.length} empleado(s) con horas extra pendientes de aprobar.</p>
+     ):reviewed<count?(
       <p className="alert">Faltan {count-reviewed} empleado(s) por revisar antes de cerrar.</p>
      ):(
       <p className="muted">Todo revisado. Al cerrar se bloquea la quincena de {company} y podés descargar el reporte.</p>

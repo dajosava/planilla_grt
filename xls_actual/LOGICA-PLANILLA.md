@@ -258,7 +258,7 @@ function aguinaldo(ordinaryAccum: number, overtimeAccum: number) {
 ### Datos que ya se colectaban
 
 - Salario mensual, cédula, correo, área, puesto, vacaciones, PIN
-- Asistencia / horas operativas (aún **no** alimentan extras automáticamente)
+- Asistencia: jornadas cerradas con **>8 h/día** generan **sugerencia de horas extra** (requieren aprobación del admin antes de pagar / cerrar)
 
 ### Datos nuevos a capturar
 
