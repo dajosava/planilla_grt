@@ -4,7 +4,7 @@ import Link from "next/link";
 import {usePathname} from "next/navigation";
 import {
  Menu,PanelLeftClose,PanelLeft,Bell,Search,LogOut,
- ClipboardCheck,TriangleAlert,LayoutDashboard,Users,Clock3,CalendarDays,ClipboardList,Wallet,ScrollText,
+ ClipboardCheck,TriangleAlert,LayoutDashboard,Users,Clock3,CalendarDays,ClipboardList,Wallet,ScrollText,AlarmClock,
 } from "lucide-react";
 import {Avatar} from "@/components/ui/avatar";
 import {CommandPalette} from "./command-palette";
@@ -16,7 +16,7 @@ function setCollapsedStore(v:boolean){
  collapseListeners.forEach(l=>l());
 }
 
-type BadgeKey="late"|"incidents";
+type BadgeKey="late"|"incidents"|"reminders";
 type NavItem={href:string;label:string;icon:typeof LayoutDashboard;badgeKey?:BadgeKey};
 const groups:{label:string;items:NavItem[]}[]=[
  {label:"Ops",items:[
@@ -30,6 +30,7 @@ const groups:{label:string;items:NavItem[]}[]=[
   {href:"/admin/turnos",label:"Turnos",icon:CalendarDays},
   {href:"/admin/ausencias",label:"Vacaciones y ausencias",icon:ClipboardList},
   {href:"/admin/planilla",label:"Planilla",icon:Wallet},
+  {href:"/admin/recordatorios",label:"Recordatorios",icon:AlarmClock,badgeKey:"reminders"},
   {href:"/admin/auditoria",label:"Auditoría",icon:ScrollText},
  ]},
 ];
@@ -38,14 +39,14 @@ const crumbs:Record<string,string>={
  "/admin":"Resumen","/admin/operaciones":"Operaciones","/admin/operaciones/plantillas":"Plantillas",
  "/admin/operaciones/tareas":"Tareas","/admin/incidentes":"Incidentes","/admin/empleados":"Empleados",
  "/admin/asistencia":"Asistencia","/admin/turnos":"Turnos","/admin/ausencias":"Vacaciones y ausencias",
- "/admin/planilla":"Planilla","/admin/auditoria":"Auditoría",
+ "/admin/planilla":"Planilla","/admin/recordatorios":"Recordatorios","/admin/auditoria":"Auditoría",
 };
 
 export function AdminShell({
- children,displayName,logoutAction,badges={late:0,incidents:0},
+ children,displayName,logoutAction,badges={late:0,incidents:0,reminders:0},
 }:{
  children:React.ReactNode;displayName:string;logoutAction:()=>Promise<void>;
- badges?:{late:number;incidents:number};
+ badges?:{late:number;incidents:number;reminders:number};
 }){
  const path=usePathname();
  const [open,setOpen]=useState(false);
@@ -55,7 +56,7 @@ export function AdminShell({
   ()=>false
  );
  const [cmdk,setCmdk]=useState(false);
- const notif=badges.late+badges.incidents;
+ const notif=badges.late+badges.incidents+badges.reminders;
 
  useEffect(()=>{
   function onKey(e:KeyboardEvent){
@@ -122,7 +123,7 @@ export function AdminShell({
      <button type="button" className="search-trigger" onClick={()=>setCmdk(true)} aria-label="Buscar (Ctrl K)">
       <Search size={15} aria-hidden="true"/> Buscar… <kbd>Ctrl K</kbd>
      </button>
-     <button type="button" className="notif-btn" aria-label={`Notificaciones${notif?`, ${notif}`:""}`} title={notif?`${badges.late} atrasadas · ${badges.incidents} incidentes críticos`:"Sin alertas"}>
+     <button type="button" className="notif-btn" aria-label={`Notificaciones${notif?`, ${notif}`:""}`} title={notif?`${badges.late} ops atrasadas · ${badges.incidents} incidentes · ${badges.reminders} recordatorios`:"Sin alertas"}>
       <Bell size={17}/>{notif>0&&<span className="dot">{notif>9?"9+":notif}</span>}
      </button>
      <Avatar name={displayName}/>

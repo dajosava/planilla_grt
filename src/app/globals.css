@@ -269,6 +269,30 @@ textarea{min-height:95px;resize:vertical}
   max-height:min(420px,55vh);overflow:auto;border:1px solid var(--border);border-radius:12px;
   background:var(--bg-app);min-width:0;scrollbar-width:thin;padding:8px;display:flex;flex-direction:column;gap:8px;
 }
+.reminder-docs{
+  margin:12px 0 16px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg-app);
+}
+.reminder-docs-title{
+  display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12px;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--text);
+}
+.reminder-docs-list{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:8px}
+.reminder-docs-list li{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface);
+}
+.reminder-docs-link{
+  display:inline-flex;align-items:center;gap:8px;flex:1 1 180px;min-width:0;color:var(--text);font-weight:600;
+}
+.reminder-docs-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reminder-docs-link small{color:var(--text);opacity:.75;font-weight:500;white-space:nowrap}
+.reminder-docs-upload{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.reminder-docs-file{
+  display:inline-flex!important;flex-direction:row!important;align-items:center;gap:8px;
+  margin:0;padding:8px 12px;min-height:36px;border:1px dashed var(--border);border-radius:10px;
+  background:var(--surface);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;
+}
+.reminder-docs-file input[type="file"]{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 .employee-dir-row{
   border:1px solid var(--border);border-radius:12px;background:var(--surface);margin:0;
 }

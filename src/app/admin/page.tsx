@@ -1,5 +1,5 @@
 import Link from "next/link";
-import {Users,Clock3,ClipboardList} from "lucide-react";
+import {Users,Clock3,ClipboardList,AlarmClock} from "lucide-react";
 import {requireRole} from "@/lib/auth";
 import {Heading,Panel,Empty,Table} from "@/components/admin-ui";
 import {KpiCard} from "@/components/ui/kpi-card";
@@ -7,13 +7,15 @@ import {dateTime,labels} from "@/lib/format";
 
 export default async function Dashboard(){
  const {client}=await requireRole("admin");
- const [employees,open,pending,events]=await Promise.all([
+ const [employees,open,pending,events,reminderAlerts]=await Promise.all([
   client.from("employees").select("id",{count:"exact",head:true}).eq("active",true),
   client.from("effective_sessions").select("id",{count:"exact",head:true}).is("ended_at",null),
   client.from("absences").select("id",{count:"exact",head:true}).eq("status","pending"),
   client.from("attendance_events").select("id,kind,occurred_at,employees(full_name,department)").order("occurred_at",{ascending:false}).limit(10),
+  client.rpc("count_reminder_alerts"),
  ]);
  if([employees,open,pending,events].some(r=>r.error))throw new Error("No se pudo cargar el resumen. Revisa las migraciones de Supabase.");
+ const alerts=typeof reminderAlerts.data==="number"?reminderAlerts.data:0;
  return <>
   <Heading title="Resumen de personal" description="Un vistazo al equipo y a las novedades que requieren atención."
    actions={<Link className="button" href="/admin/operaciones">Ir a operaciones</Link>}/>
@@ -21,6 +23,7 @@ export default async function Dashboard(){
    <KpiCard label="Empleados activos" value={employees.count??0} tone="green" icon={<Users size={18}/>} sub="En todas las áreas" href="/admin/empleados"/>
    <KpiCard label="Jornadas abiertas" value={open.count??0} tone="amber" icon={<Clock3 size={18}/>} sub="Entrada sin salida registrada" href="/admin/asistencia"/>
    <KpiCard label="Ausencias por revisar" value={pending.count??0} tone="navy" icon={<ClipboardList size={18}/>} sub="Vacaciones, permisos e incapacidades" href="/admin/ausencias"/>
+   <KpiCard label="Recordatorios en alarma" value={alerts} tone={alerts?"danger":"navy"} icon={<AlarmClock size={18}/>} sub="Trámites y renovaciones por atender" href="/admin/recordatorios?vista=alarmas"/>
   </div>
   <div className="notice">
    <div><strong>Antes de cerrar la planilla</strong><p>Resuelve las marcas faltantes y revisa los conceptos de pago de cada empleado.</p></div>
