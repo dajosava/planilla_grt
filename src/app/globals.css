@@ -239,6 +239,26 @@ textarea{min-height:95px;resize:vertical}
 
 /* Tables */
 .table-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);min-width:0}
+.directory-scroll{
+  max-height:min(420px,55vh);overflow:auto;border:1px solid var(--border);border-radius:12px;
+  background:var(--bg-app);min-width:0;scrollbar-width:thin;padding:8px;display:flex;flex-direction:column;gap:8px;
+}
+.employee-dir-row{
+  border:1px solid var(--border);border-radius:12px;background:var(--surface);margin:0;
+}
+.employee-dir-row>summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:12px 14px;font-weight:600;user-select:none;
+}
+.employee-dir-row>summary::-webkit-details-marker{display:none}
+.employee-dir-main{display:flex;flex-direction:column;gap:2px;min-width:140px;flex:1 1 160px}
+.employee-dir-main strong{color:var(--text);font-size:14px}
+.employee-dir-main small{color:var(--text);font-weight:400;font-size:12px;opacity:.85}
+.employee-dir-meta{flex:1 1 120px}
+.employee-dir-row>summary .tabular{margin-left:auto;font-variant-numeric:tabular-nums}
+.employee-dir-row[open]>summary{border-bottom:1px solid var(--border)}
+.employee-dir-body{padding:12px 14px 16px}
+.employee-dir-body .form-grid{margin-top:8px}
 table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}
 th{
   font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:var(--surface-2);color:var(--text-secondary);
@@ -420,8 +440,8 @@ tr:last-child td{border-bottom:0}
 .kiosk-form{margin:35px 0;background:var(--surface);padding:30px;border:1px solid var(--border);border-radius:16px}
 .kiosk-form label{text-align:left;font-size:13px;font-weight:600;display:flex;flex-direction:column;gap:10px;color:var(--text-secondary)}
 .kiosk-form input{font-size:23px;padding:18px}
-.punch-options{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:25px 0}
-.punch-options button{background:var(--surface-2);color:var(--text);border:2px solid transparent;min-height:104px;flex-direction:column;font-size:12px;padding:12px 8px}
+.punch-options{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:25px 0}
+.punch-options button{background:var(--surface-2);color:var(--text);border:2px solid transparent;min-height:140px;flex-direction:column;font-size:18px;font-weight:700;padding:20px 12px;gap:10px}
 .punch-options button.selected{border-color:var(--green-400);color:var(--green-400);background:rgba(14,124,74,.18)}
 
 /* Marcación: tema claro para tablet en exteriores */
@@ -612,8 +632,7 @@ tr:last-child td{border-bottom:0}
   .clock{font-size:clamp(40px,9vw,72px)}
   /* Tablets (iPad) no deben achicar la hora de marcación */
   .kiosk-light .clock{font-size:clamp(68px,14.5cqi,128px)}
-  .punch-options{grid-template-columns:1fr 1fr}
-  .kiosk-light .punch-options{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .punch-options,.kiosk-light .punch-options{grid-template-columns:1fr 1fr}
   .bottom-nav{
     display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:30;
     background:var(--bg-app);border-top:1px solid var(--border);padding:6px 8px calc(6px + env(safe-area-inset-bottom));

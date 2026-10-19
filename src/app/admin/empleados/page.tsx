@@ -1,9 +1,10 @@
 import {employees} from "@/lib/data";
 import {money,dateOnly,todayCR,cedula} from "@/lib/format";
-import {Heading,Panel,CollapsiblePanel,Empty,Table} from "@/components/admin-ui";
+import {Heading,CollapsiblePanel,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
 import {EmployeeSelect} from "@/components/employee-select";
 import {DeleteEmployee} from "@/components/delete-employee";
+import {Badge} from "@/components/ui/badge";
 import {createEmployee,updateEmployee,resetPin,vacationBalance,toggleEmployee,deleteEmployee} from "../actions";
 
 const DEPTS=["Pista","Supermercado","Tienda","Transporte","Administración"];
@@ -13,9 +14,47 @@ export default async function Page(){
  const today=todayCR();
  return <>
   <Heading title="Empleados" description="El equipo de Gasolinera Río Tempisque, organizado por área."/>
-  <Panel title="Directorio">{!list.length?<Empty text="Registra el primer empleado para comenzar."/>:<Table headers={["Código / Nombre","Cédula","Correo","Área / Puesto","Ingreso","Salario mensual","Vacaciones","Acciones"]}>{list.map(e=><tr key={e.id}><td><strong>{e.full_name}</strong><small>{e.code}</small></td><td>{cedula(e.cedula)}</td><td>{e.email??<span className="muted">Sin correo</span>}</td><td>{e.department}<small>{e.position}</small></td><td>{dateOnly(e.hired_on)}</td><td>{money(e.monthly_salary_cents)}</td><td>{e.vacation_balance} días</td><td><div className="row-actions"><form action={toggleEmployee}><input type="hidden" name="id" value={e.id}/><input type="hidden" name="active" value={String(!e.active)}/><button className="secondary small-button">{e.active?"Desactivar":"Reactivar"}</button></form><DeleteEmployee id={e.id} name={e.full_name} code={e.code} action={deleteEmployee}/></div></td></tr>)}</Table>}</Panel>
-
-  {list.length>0&&<CollapsiblePanel title="Editar datos del personal">{list.map(e=><details key={e.id}><summary>{e.code} · {e.full_name}</summary><ActionForm action={updateEmployee}><input name="id" type="hidden" value={e.id}/><label>Nombre<input name="full_name" defaultValue={e.full_name} required minLength={3} maxLength={120}/></label><label>Cédula<input name="cedula" defaultValue={e.cedula??""} inputMode="numeric" pattern="[0-9\-]{9,14}" placeholder="1-2345-6789" required minLength={9} maxLength={14}/></label><label>Correo electrónico<input name="email" type="email" defaultValue={e.email??""} placeholder="empleado@ejemplo.com" required maxLength={254} autoComplete="email"/></label><label>Área<select name="department" defaultValue={e.department}>{DEPTS.map(v=><option key={v}>{v}</option>)}</select></label><label>Puesto<input name="position" defaultValue={e.position} required minLength={2} maxLength={80}/></label><label>Fecha de ingreso<input name="hired_on" type="date" defaultValue={e.hired_on} max={today} min="1950-01-01" required/></label><label>Salario mensual (CRC)<input name="salary" type="number" min="0" step="0.01" defaultValue={e.monthly_salary_cents/100} required/></label><label>Horas ordinarias / mes<input name="hours_month" type="number" min="1" max="400" step="0.01" defaultValue={Number(e.hours_per_month??243.36)} required/><small className="muted">Default 243.36 (30.42×8). Define el valor hora.</small></label><label className="checkbox"><input name="exempt_from_ccss" type="checkbox" defaultChecked={!!e.exempt_from_ccss}/>Exento de CCSS (caso especial)</label></ActionForm><div className="row-actions employee-delete"><DeleteEmployee id={e.id} name={e.full_name} code={e.code} action={deleteEmployee}/></div></details>)}</CollapsiblePanel>}
+  <CollapsiblePanel title="Directorio">
+   <p className="muted small">Tocá un empleado para ver y editar sus datos.</p>
+   <div className="directory-scroll">
+    {!list.length?<Empty text="Registra el primer empleado para comenzar."/>:list.map(e=>(
+     <details key={e.id} className="employee-dir-row">
+      <summary>
+       <span className="employee-dir-main">
+        <strong>{e.full_name}</strong>
+        <small>{e.code} · {cedula(e.cedula)}</small>
+       </span>
+       <span className="employee-dir-meta muted small">{e.department} · {e.position}</span>
+       <strong className="tabular">{money(e.monthly_salary_cents)}</strong>
+       <Badge tone={e.active?"approved":"pending"}>{e.active?"Activo":"Inactivo"}</Badge>
+      </summary>
+      <div className="employee-dir-body">
+       <p className="muted small">Ingreso {dateOnly(e.hired_on)} · Vacaciones {e.vacation_balance} días{e.email?` · ${e.email}`:""}</p>
+       <ActionForm action={updateEmployee} submit="Guardar cambios">
+        <input name="id" type="hidden" value={e.id}/>
+        <label>Nombre<input name="full_name" defaultValue={e.full_name} required minLength={3} maxLength={120}/></label>
+        <label>Cédula<input name="cedula" defaultValue={e.cedula??""} inputMode="numeric" pattern="[0-9\-]{9,14}" placeholder="1-2345-6789" required minLength={9} maxLength={14}/></label>
+        <label>Correo electrónico<input name="email" type="email" defaultValue={e.email??""} placeholder="empleado@ejemplo.com" required maxLength={254} autoComplete="email"/></label>
+        <label>Área<select name="department" defaultValue={e.department}>{DEPTS.map(v=><option key={v}>{v}</option>)}</select></label>
+        <label>Puesto<input name="position" defaultValue={e.position} required minLength={2} maxLength={80}/></label>
+        <label>Fecha de ingreso<input name="hired_on" type="date" defaultValue={e.hired_on} max={today} min="1950-01-01" required/></label>
+        <label>Salario mensual (CRC)<input name="salary" type="number" min="0" step="0.01" defaultValue={e.monthly_salary_cents/100} required/></label>
+        <label>Horas ordinarias / mes<input name="hours_month" type="number" min="1" max="400" step="0.01" defaultValue={Number(e.hours_per_month??243.36)} required/><small className="muted">Default 243.36 (30.42×8). Define el valor hora.</small></label>
+        <label className="checkbox"><input name="exempt_from_ccss" type="checkbox" defaultChecked={!!e.exempt_from_ccss}/>Exento de CCSS (caso especial)</label>
+       </ActionForm>
+       <div className="row-actions employee-delete">
+        <form action={toggleEmployee}>
+         <input type="hidden" name="id" value={e.id}/>
+         <input type="hidden" name="active" value={String(!e.active)}/>
+         <button className="secondary small-button">{e.active?"Desactivar":"Reactivar"}</button>
+        </form>
+        <DeleteEmployee id={e.id} name={e.full_name} code={e.code} action={deleteEmployee}/>
+       </div>
+      </div>
+     </details>
+    ))}
+   </div>
+  </CollapsiblePanel>
 
   <CollapsiblePanel title="Registrar empleado">
    <ActionForm action={createEmployee} submit="Crear empleado">
