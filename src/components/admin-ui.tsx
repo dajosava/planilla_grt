@@ -2,13 +2,13 @@ import type {ReactNode} from "react";
 import {ChevronDown} from "lucide-react";
 import {EmptyState} from "@/components/ui/empty-state";
 
-export function Heading({title,description,actions}:{title:string;description:string;actions?:ReactNode}){
+export function Heading({title,description,actions}:{title:string;description?:string;actions?:ReactNode}){
  return <div className="page-heading">
   <div className="page-heading-row">
    <div>
     <p className="eyebrow">GASOLINERA RÍO TEMPISQUE</p>
     <h1>{title}</h1>
-    <p className="muted">{description}</p>
+    {description?<p className="muted">{description}</p>:null}
    </div>
    {actions&&<div className="actions">{actions}</div>}
   </div>
