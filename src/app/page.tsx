@@ -1,9 +1,9 @@
 import Link from "next/link";
-import {ClipboardCheck,LayoutDashboard,Fuel} from "lucide-react";
+import {ClipboardCheck,LayoutDashboard} from "lucide-react";
 
 export default function Home(){
  return <main className="landing">
-  <div className="brand-mark" aria-hidden="true"><Fuel size={20}/></div>
+  <img src="/logo-grt.png" alt="Gasolinera Río Tempisque" className="landing-logo" width={220} height={124} decoding="async"/>
   <p className="eyebrow">Pueblo Viejo · Nicoya</p>
   <h1>Gasolinera Río Tempisque</h1>
   <p className="muted">Operaciones de estación, asistencia y planilla en un solo lugar.</p>

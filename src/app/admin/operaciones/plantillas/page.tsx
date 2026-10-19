@@ -48,7 +48,7 @@ export default async function Page(){
    const items=raw.slice().sort((a:Item,b:Item)=>a.sort_order-b.sort_order);
    const text=items.map((i:Item)=>(i.requires_photo?"!":"")+i.label).join("\n");
    const assignee=t.assignee as Emp|null;
-   return <details key={t.id}><summary>Editar · {t.title}</summary>
+   return <CollapsiblePanel key={t.id} title={`Editar · ${t.title}`}>
     <ActionForm action={saveTemplate} submit="Actualizar">
      <input type="hidden" name="id" value={t.id}/>
      <label>Título<input name="title" defaultValue={t.title} required minLength={3} maxLength={120}/></label>
@@ -59,7 +59,7 @@ export default async function Page(){
      <label>Checklist<textarea name="items" rows={6} required defaultValue={text}/></label>
      <label className="checkbox"><input type="checkbox" name="active" defaultChecked={t.active}/> Activa</label>
     </ActionForm>
-   </details>;
+   </CollapsiblePanel>;
   })}
  </>;
 }

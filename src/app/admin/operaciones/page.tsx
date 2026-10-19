@@ -73,22 +73,22 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    actions={<GenerateTasksButton/>}
   />
 
-  <OpsNavBar/>
-
-  <Panel title="Periodo">
-   <form className="filters ops-dash-filters" method="get">
-    <label>Desde<input type="date" name="desde" defaultValue={from} required/></label>
-    <label>Hasta<input type="date" name="hasta" defaultValue={to} required/></label>
-    {estado&&<input type="hidden" name="estado" value={estado}/>}
-    {area&&<input type="hidden" name="area" value={area}/>}
-    <button type="submit">Aplicar</button>
-   </form>
-   <div className="ops-dash-presets" role="group" aria-label="Filtros rápidos">
-    <Link className={`chip${from===today&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:today,hasta:today})}`}>Hoy</Link>
-    <Link className={`chip${from===weekStart&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:weekStart,hasta:today})}`}>Últimos 7 días</Link>
-    <Link className={`chip${from===monthStart&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:monthStart,hasta:today})}`}>Mes en curso</Link>
+  <OpsNavBar end={
+   <div className="ops-toolbar-filters">
+    <form className="filters ops-dash-filters" method="get">
+     <label>Desde<input type="date" name="desde" defaultValue={from} required/></label>
+     <label>Hasta<input type="date" name="hasta" defaultValue={to} required/></label>
+     {estado&&<input type="hidden" name="estado" value={estado}/>}
+     {area&&<input type="hidden" name="area" value={area}/>}
+     <button type="submit" className="secondary">Aplicar</button>
+    </form>
+    <div className="ops-dash-presets" role="group" aria-label="Filtros rápidos">
+     <Link className={`chip${from===today&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:today,hasta:today})}`}>Hoy</Link>
+     <Link className={`chip${from===weekStart&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:weekStart,hasta:today})}`}>Últimos 7 días</Link>
+     <Link className={`chip${from===monthStart&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:monthStart,hasta:today})}`}>Mes en curso</Link>
+    </div>
    </div>
-  </Panel>
+  }/>
 
   <div className="stats">
    <KpiCard

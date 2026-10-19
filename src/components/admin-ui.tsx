@@ -1,4 +1,5 @@
 import type {ReactNode} from "react";
+import {ChevronDown} from "lucide-react";
 import {EmptyState} from "@/components/ui/empty-state";
 
 export function Heading({title,description,actions}:{title:string;description:string;actions?:ReactNode}){
@@ -19,8 +20,17 @@ export function Panel({title,children,action}:{title:string;children:ReactNode;a
   {children}
  </section>;
 }
+/** Formularios y paneles de captura: colapsados por defecto. */
 export function CollapsiblePanel({title,children,open=false}:{title:string;children:ReactNode;open?:boolean}){
- return <details className="panel collapsible" open={open}><summary><h2>{title}</h2></summary>{children}</details>;
+ return (
+  <details className="panel collapsible" {...(open?{open:true}:{})}>
+   <summary>
+    <h2>{title}</h2>
+    <ChevronDown size={18} className="collapsible-chevron" aria-hidden="true"/>
+   </summary>
+   <div className="collapsible-body">{children}</div>
+  </details>
+ );
 }
 export function Empty({text="Todavía no hay registros."}:{text?:string}){
  return <EmptyState text={text}/>;
