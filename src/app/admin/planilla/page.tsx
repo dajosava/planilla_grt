@@ -7,6 +7,7 @@ import {KpiCard} from "@/components/ui/kpi-card";
 import {Badge} from "@/components/ui/badge";
 import {PayrollFlow,payrollActiveIndex} from "@/components/payroll-flow";
 import {createPayroll,updatePayroll,closePayroll} from "../actions";
+import {COMPANIES,parseCompany} from "@/lib/companies";
 import {money,labels,todayCR} from "@/lib/format";
 import {labelFortnight} from "@/lib/payroll";
 
@@ -15,10 +16,11 @@ function periodLabel(run:{period_start:string;period_end:string;kind?:string|nul
  return `${run.period_start.slice(0,7)} · ${labels[run.status]}`;
 }
 
-export default async function Page({searchParams}:{searchParams:Promise<{run?:string}>}){
+export default async function Page({searchParams}:{searchParams:Promise<{run?:string;empresa?:string}>}){
  const {client}=await requireRole("admin");
  const params=await searchParams;
- const {data:runs,error}=await client.from("payroll_runs").select("*").order("period_start",{ascending:false});
+ const company=parseCompany(params.empresa);
+ const {data:runs,error}=await client.from("payroll_runs").select("*").eq("company",company).order("period_start",{ascending:false});
  if(error)throw new Error("No se pudo cargar la planilla");
  const selected=runs?.find(r=>r.id===params.run)??runs?.[0];
  const {data:items,error:itemError}=selected?await client.from("payroll_items").select("*").eq("run_id",selected.id).order("employee_name"):{data:[],error:null};
@@ -50,14 +52,22 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
  return <>
   <Heading
    title="Planilla quincenal"
-   actions={selected?undefined:<Link className="button secondary" href="/admin/empleados">Ver empleados</Link>}
+   description="Tres planillas separadas: Gasolinera, Supermercado y Transporte."
+   actions={<Link className="button secondary" href="/admin/empleados">Ver empleados</Link>}
   />
+
+  <nav className="company-tabs" aria-label="Sociedades">
+   {COMPANIES.map(c=>(
+    <Link key={c} className={c===company?"active":""} href={`/admin/planilla?empresa=${encodeURIComponent(c)}`}>{c}</Link>
+   ))}
+  </nav>
 
   <PayrollFlow activeIndex={activeIndex}/>
 
-  <CollapsiblePanel title="1 · Crear quincena" open={!selected}>
-   <p className="muted small">Elegí el mes y si es la 1ª (días 1–15) o la 2ª (16–fin). Se precarga adelanto = salario/2 y CCSS 10.83%.</p>
-   <ActionForm action={createPayroll} submit="Crear quincena">
+  <CollapsiblePanel title={`1 · Crear quincena · ${company}`} open={!selected}>
+   <p className="muted small">Solo incluye empleados activos de <strong>{company}</strong>. Adelanto = salario/2 y CCSS 10.83%.</p>
+   <ActionForm action={createPayroll} submit={`Crear quincena · ${company}`}>
+    <input type="hidden" name="company" value={company}/>
     <label>Mes<input name="month" type="month" defaultValue={todayCR().slice(0,7)} required/></label>
     <label>Quincena<select name="half" defaultValue={Number(todayCR().slice(8,10))<=15?"1":"2"} required>
      <option value="1">1ª quincena (1–15)</option>
@@ -66,13 +76,13 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
    </ActionForm>
   </CollapsiblePanel>
 
-  {!selected?<Empty text="Todavía no hay quincenas. Creá la primera arriba."/>:<>
-   <div className="period-tabs" role="tablist" aria-label="Quincenas">
-    {runs?.map(r=><Link key={r.id} className={r.id===selected.id?"active":""} href={"/admin/planilla?run="+r.id}>{periodLabel(r)}</Link>)}
+  {!selected?<Empty text={`Todavía no hay quincenas de ${company}. Creá la primera arriba.`}/>:<>
+   <div className="period-tabs" role="tablist" aria-label={`Quincenas de ${company}`}>
+    {runs?.map(r=><Link key={r.id} className={r.id===selected.id?"active":""} href={`/admin/planilla?empresa=${encodeURIComponent(company)}&run=${r.id}`}>{periodLabel(r)}</Link>)}
    </div>
 
    <p className="payroll-period-banner">
-    <strong>{labelFortnight(selected.period_start,selected.period_end)}</strong>
+    <strong>{company} · {labelFortnight(selected.period_start,selected.period_end)}</strong>
     <Badge tone={isClosed?"approved":"pending"}>{labels[selected.status]}</Badge>
    </p>
 
@@ -145,16 +155,16 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
      {reviewed<count?(
       <p className="alert">Faltan {count-reviewed} empleado(s) por revisar antes de cerrar.</p>
      ):(
-      <p className="muted">Todo revisado. Al cerrar se bloquea la quincena y podés descargar el reporte para depositar.</p>
+      <p className="muted">Todo revisado. Al cerrar se bloquea la quincena de {company} y podés descargar el reporte.</p>
      )}
-     <p className="payroll-close-total">Neto a depositar: <strong className="amount">{money(totalNet)}</strong></p>
+     <p className="payroll-close-total">Neto a depositar ({company}): <strong className="amount">{money(totalNet)}</strong></p>
      <ActionForm action={closePayroll} submit="Cerrar quincena y habilitar pago">
       <input type="hidden" name="id" value={selected.id}/>
      </ActionForm>
     </CollapsiblePanel>
    </>:
     <Panel title="5 · Pago y comprobantes">
-     <p className="muted">Quincena cerrada. Descargá el reporte para el banco o impresión.</p>
+     <p className="muted">Quincena de {company} cerrada. Descargá el reporte para el banco o impresión.</p>
      <div className="button-row">
       <a className="button" href={"/admin/planilla/"+selected.id+"/reporte"}>Reporte imprimible / PDF</a>
       <a className="button secondary" href={"/api/reportes/"+selected.id}>CSV para Excel / banco</a>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {employees} from "@/lib/data";
 import {money,dateOnly,todayCR,cedula} from "@/lib/format";
 import {Heading,CollapsiblePanel,Empty} from "@/components/admin-ui";
@@ -5,19 +6,28 @@ import {ActionForm} from "@/components/action-form";
 import {EmployeeSelect} from "@/components/employee-select";
 import {DeleteEmployee} from "@/components/delete-employee";
 import {Badge} from "@/components/ui/badge";
+import {COMPANIES,isCompany} from "@/lib/companies";
 import {createEmployee,updateEmployee,resetPin,vacationBalance,toggleEmployee,deleteEmployee} from "../actions";
 
-const DEPTS=["Pista","Supermercado","Tienda","Transporte","Administración"];
-
-export default async function Page(){
+export default async function Page({searchParams}:{searchParams:Promise<{area?:string}>}){
  const list=await employees();
+ const params=await searchParams;
+ const area=typeof params.area==="string"&&isCompany(params.area)?params.area:null;
+ const filtered=area?list.filter(e=>e.department===area):list;
+ const counts=Object.fromEntries(COMPANIES.map(c=>[c,list.filter(e=>e.department===c).length])) as Record<string,number>;
  const today=todayCR();
  return <>
-  <Heading title="Empleados" description="El equipo de Gasolinera Río Tempisque, organizado por área."/>
-  <CollapsiblePanel title="Directorio">
-   <p className="muted small">Tocá un empleado para ver y editar sus datos.</p>
+  <Heading title="Empleados" description="Cada persona pertenece a una sociedad: Gasolinera, Supermercado o Transporte (planilla separada)."/>
+  <CollapsiblePanel title={area?`Directorio · ${area}`:"Directorio"}>
+   <nav className="company-tabs" aria-label="Filtrar por sociedad">
+    <Link className={!area?"active":""} href="/admin/empleados">Todas ({list.length})</Link>
+    {COMPANIES.map(c=>(
+     <Link key={c} className={area===c?"active":""} href={`/admin/empleados?area=${encodeURIComponent(c)}`}>{c} ({counts[c]??0})</Link>
+    ))}
+   </nav>
+   <p className="muted small">{area?`Mostrando ${filtered.length} de ${area}. `:""}Tocá un empleado para ver y editar sus datos.</p>
    <div className="directory-scroll">
-    {!list.length?<Empty text="Registra el primer empleado para comenzar."/>:list.map(e=>(
+    {!filtered.length?<Empty text={area?`No hay empleados en ${area}.`:"Registra el primer empleado para comenzar."}/>:filtered.map(e=>(
      <details key={e.id} className="employee-dir-row">
       <summary>
        <span className="employee-dir-main">
@@ -35,7 +45,7 @@ export default async function Page(){
         <label>Nombre<input name="full_name" defaultValue={e.full_name} required minLength={3} maxLength={120}/></label>
         <label>Cédula<input name="cedula" defaultValue={e.cedula??""} inputMode="numeric" pattern="[0-9\-]{9,14}" placeholder="1-2345-6789" required minLength={9} maxLength={14}/></label>
         <label>Correo electrónico<input name="email" type="email" defaultValue={e.email??""} placeholder="empleado@ejemplo.com" required maxLength={254} autoComplete="email"/></label>
-        <label>Área<select name="department" defaultValue={e.department}>{DEPTS.map(v=><option key={v}>{v}</option>)}</select></label>
+        <label>Sociedad / planilla<select name="department" defaultValue={e.department}>{COMPANIES.map(v=><option key={v}>{v}</option>)}</select></label>
         <label>Puesto<input name="position" defaultValue={e.position} required minLength={2} maxLength={80}/></label>
         <label>Fecha de ingreso<input name="hired_on" type="date" defaultValue={e.hired_on} max={today} min="1950-01-01" required/></label>
         <label>Salario mensual (CRC)<input name="salary" type="number" min="0" step="0.01" defaultValue={e.monthly_salary_cents/100} required/></label>
@@ -62,7 +72,7 @@ export default async function Page(){
     <label>Nombre completo<input name="full_name" required minLength={3} maxLength={120}/></label>
     <label>Cédula<input name="cedula" inputMode="numeric" pattern="[0-9\-]{9,14}" placeholder="1-2345-6789" required minLength={9} maxLength={14}/></label>
     <label>Correo electrónico<input name="email" type="email" placeholder="empleado@ejemplo.com" required maxLength={254} autoComplete="email"/></label>
-    <label>Área<select name="department">{DEPTS.map(v=><option key={v}>{v}</option>)}</select></label>
+    <label>Sociedad / planilla<select name="department" defaultValue="Gasolinera">{COMPANIES.map(v=><option key={v}>{v}</option>)}</select></label>
     <label>Puesto<input name="position" required minLength={2} maxLength={80}/></label>
     <label>Fecha de ingreso<input name="hired_on" type="date" defaultValue={today} max={today} min="1950-01-01" required/></label>
     <label>Salario mensual (CRC)<input name="salary" type="number" min="0" step="0.01" required/></label>

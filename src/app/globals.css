@@ -555,8 +555,18 @@ tr:last-child td{border-bottom:0}
 .mobile-cards{display:none}
 .bottom-nav{display:none}
 .period-tabs{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}
-.period-tabs a{padding:10px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:12px;color:var(--text-secondary)}
+.period-tabs a{padding:10px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:12px;color:var(--text)}
 .period-tabs a.active{background:var(--green-600);color:#FFFFFF;border-color:var(--green-600)}
+.company-tabs{
+  display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px;
+}
+.company-tabs a{
+  display:inline-flex;align-items:center;justify-content:center;text-align:center;
+  padding:7px 12px;min-height:34px;border-radius:8px;font-weight:650;font-size:12px;
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+}
+.company-tabs a:hover{border-color:#3A5680;background:var(--surface-2)}
+.company-tabs a.active{background:var(--green-600);border-color:var(--green-600);color:#FFFFFF}
 
 /* Flujo de planilla (dueño de empresa) */
 .payroll-flow{

@@ -17,8 +17,8 @@ export default async function Report({params}:{params:Promise<{id:string}>}){
  const periodo=run.kind==="fortnight"?labelFortnight(run.period_start,run.period_end):`${run.period_start} al ${run.period_end}`;
  return <article className="report">
   <p className="eyebrow">GASOLINERA RÍO TEMPISQUE · PUEBLO VIEJO, NICOYA</p>
-  <h1>Reporte de pagos quincenal</h1>
-  <p>Período: {periodo} · Moneda: CRC</p>
+  <h1>Reporte de pagos · {run.company??"Gasolinera"}</h1>
+  <p>Período: {periodo} · Moneda: CRC · Sociedad: {run.company??"Gasolinera"}</p>
   <PrintButton/>
   <Table headers={["Código","Empleado","Adelanto","Extras","CCSS","Otras ded.","Neto"]}>
    {data?.map(i=>{
