@@ -47,7 +47,11 @@ export async function saveTemplate(_:ActionState,form:FormData):Promise<ActionSt
   dbError(error);
   revalidatePath("/admin/operaciones");
   revalidatePath("/admin/operaciones/plantillas");
-  return {success:"Plantilla guardada."};
+  revalidatePath("/admin/operaciones/tareas");
+  revalidatePath("/operaciones");
+  return {success:assignee
+   ?"Plantilla guardada. Las tareas abiertas de hoy ya quedaron asignadas a ese empleado."
+   :"Plantilla guardada."};
  }catch(e){return failure(e)}
 }
 
@@ -97,8 +101,11 @@ export async function generateTodayTasks():Promise<ActionState>{
   dbError(error);
   revalidatePath("/admin/operaciones");
   revalidatePath("/admin/operaciones/tareas");
+  revalidatePath("/operaciones");
   const n=typeof data==="number"?data:0;
-  return {success:n===0?"No había plantillas nuevas por generar para hoy.":`Se generaron ${n} tarea(s) para hoy.`};
+  return {success:n===0
+   ?"No había plantillas nuevas. Se sincronizaron las asignaciones de las tareas abiertas de hoy."
+   :`Se generaron ${n} tarea(s) para hoy y se sincronizaron asignaciones.`};
  }catch(e){return failure(e)}
 }
 

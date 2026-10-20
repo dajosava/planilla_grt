@@ -13,7 +13,7 @@ export function GenerateTasksButton(){
    aria-label="Generar tareas de hoy"
    title="Crea las tareas del día desde las plantillas activas"
    onClick={()=>{
-    if(!confirm("¿Generar las tareas de hoy desde las plantillas activas? Si ya existen, no se duplicarán."))return;
+    if(!confirm("¿Generar las tareas de hoy desde las plantillas activas? Si ya existen, no se duplican; sí se actualiza el empleado asignado en las abiertas."))return;
     start(async()=>{setMsg({});setMsg(await generateTodayTasks())});
    }}
   >

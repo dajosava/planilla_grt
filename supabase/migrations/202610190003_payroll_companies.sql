@@ -88,7 +88,8 @@ create or replace function public.create_employee(
  insert into public.employees(code,full_name,department,position,monthly_salary_cents,vacation_balance,hired_on,cedula,email,hours_per_month,exempt_from_ccss)
  values(p_code,p_name,p_department,p_position,p_salary,p_vacation,p_hired_on,v_cedula,v_email,v_hours,coalesce(p_exempt_ccss,false))
  returning id into eid;
- insert into public.employee_secrets(employee_id,pin_hash) values(eid,crypt(p_pin,gen_salt('bf')));
+ insert into public.employee_secrets(employee_id,pin_hash)
+ values(eid,extensions.crypt(p_pin,extensions.gen_salt('bf',10)));
  return eid;
  end;
 $$;

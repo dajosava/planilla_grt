@@ -39,7 +39,8 @@ const crumbs:Record<string,string>={
  "/admin":"Resumen","/admin/operaciones":"Operaciones","/admin/operaciones/plantillas":"Plantillas",
  "/admin/operaciones/tareas":"Tareas","/admin/incidentes":"Incidentes","/admin/empleados":"Empleados",
  "/admin/asistencia":"Asistencia","/admin/turnos":"Turnos","/admin/ausencias":"Vacaciones y ausencias",
- "/admin/planilla":"Planilla","/admin/recordatorios":"Recordatorios","/admin/auditoria":"Auditoría",
+ "/admin/planilla":"Planilla","/admin/planilla/historial":"Historial de pagos",
+ "/admin/recordatorios":"Recordatorios","/admin/auditoria":"Auditoría",
 };
 
 export function AdminShell({
@@ -79,7 +80,7 @@ export function AdminShell({
   <aside className={`sidebar${open?" open":""}`} aria-label="Navegación principal">
    <Link href="/admin" className="brand" onClick={()=>setOpen(false)}>
     <div className="brand-mark">GRT</div>
-    <div><strong>Gasolinera Río Tempisque</strong><span>Gestión de personal</span></div>
+    <div><strong>Gasolinera Río Tempisque</strong><span>Gestión de Operaciones y personal</span></div>
    </Link>
    {groups.map(g=><div className="nav-group" key={g.label}>
     <p className="nav-label">{g.label}</p>

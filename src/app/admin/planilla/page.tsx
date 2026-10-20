@@ -6,7 +6,8 @@ import {ActionForm} from "@/components/action-form";
 import {KpiCard} from "@/components/ui/kpi-card";
 import {Badge} from "@/components/ui/badge";
 import {PayrollFlow,payrollActiveIndex} from "@/components/payroll-flow";
-import {createPayroll,updatePayroll,closePayroll,syncPayrollOt,approvePayrollOt,rejectPayrollOt} from "../actions";
+import {createPayroll,updatePayroll,closePayroll,deletePayroll,syncPayrollOt,approvePayrollOt,rejectPayrollOt} from "../actions";
+import {DeletePayroll} from "@/components/delete-payroll";
 import {COMPANIES,parseCompany} from "@/lib/companies";
 import {money,labels,todayCR,dateOnly} from "@/lib/format";
 import {labelFortnight} from "@/lib/payroll";
@@ -59,7 +60,10 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
   <Heading
    title="Planilla quincenal"
    description="Tres planillas separadas: Gasolinera, Supermercado y Transporte. Horas >8/día se proponen como extras para tu aprobación."
-   actions={<Link className="button secondary" href="/admin/empleados">Ver empleados</Link>}
+   actions={<>
+    <Link className="button secondary" href="/admin/planilla/historial">Historial de pagos</Link>
+    <Link className="button secondary" href="/admin/empleados">Ver empleados</Link>
+   </>}
   />
 
   <nav className="company-tabs" aria-label="Sociedades">
@@ -230,13 +234,29 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
      <ActionForm action={closePayroll} submit="Cerrar quincena y habilitar pago">
       <input type="hidden" name="id" value={selected.id}/>
      </ActionForm>
+     <div className="button-row" style={{marginTop:14}}>
+      <DeletePayroll
+       id={selected.id}
+       company={company}
+       periodLabel={labelFortnight(selected.period_start,selected.period_end)}
+       status={selected.status}
+       action={deletePayroll}
+      />
+     </div>
     </CollapsiblePanel>
    </>:
     <Panel title="5 · Pago y comprobantes">
-     <p className="muted">Quincena de {company} cerrada. Descargá el reporte para el banco o impresión.</p>
+     <p className="muted">Quincena de {company} cerrada. Descargá el reporte para el banco o impresión. Si el cierre fue un error, podés eliminarla y volver a crear la quincena.</p>
      <div className="button-row">
       <a className="button" href={"/admin/planilla/"+selected.id+"/reporte"}>Reporte imprimible / PDF</a>
       <a className="button secondary" href={"/api/reportes/"+selected.id}>CSV para Excel / banco</a>
+      <DeletePayroll
+       id={selected.id}
+       company={company}
+       periodLabel={labelFortnight(selected.period_start,selected.period_end)}
+       status={selected.status}
+       action={deletePayroll}
+      />
      </div>
     </Panel>}
   </>}

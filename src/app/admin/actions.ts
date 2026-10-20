@@ -2,7 +2,20 @@
 import {revalidatePath} from "next/cache";import {z} from "zod";import {requireRole} from "@/lib/auth";import {employeeSchema,dateSchema,cedulaSchema,emailSchema,companySchema} from "@/lib/schemas";import {crcToCents} from "@/lib/payroll";import type {ActionState} from "@/components/action-form";
 function fields(form:FormData){return Object.fromEntries(form.entries())}
 function failure(error:unknown):ActionState{if(error instanceof z.ZodError)return {error:"Revisa los campos del formulario."};return {error:error instanceof Error?error.message:"No se pudo guardar el registro."};}
-function dbError(error:{message:string;code?:string}|null){if(error){if(error.code==="23505")throw new Error("Ya existe un registro con esos datos.");if(error.code==="23514")throw new Error("Los valores no cumplen las condiciones o el saldo disponible.");throw new Error(error.code==="P0001"?error.message:"No se pudo guardar. Revisa los datos y los permisos.");}}
+function dbError(error:{message:string;code?:string;details?:string}|null){
+ if(!error)return;
+ const text=`${error.message??""} ${error.details??""}`;
+ if(error.code==="23505")throw new Error("Ya existe un registro con esos datos (código, cédula o quincena duplicada).");
+ if(error.code==="23514"){
+  if(/payroll_ot_days|worked_hours|ot_hours/i.test(text))
+   throw new Error("Hay jornadas de asistencia con más de 24 h en un día. Corregí esas marcaciones en Asistencia e intentá de nuevo.");
+  if(/date_trunc|1 mon|payroll_runs_check/i.test(text))
+   throw new Error("La base todavía tiene un check de planilla mensual. Ejecutá la migración 202610190011 y volvé a intentar.");
+  throw new Error(error.message||"Los valores no cumplen las condiciones o el saldo disponible.");
+ }
+ if(error.code==="P0001"||error.code==="42883")throw new Error(error.message);
+ throw new Error(error.message||"No se pudo guardar. Revisa los datos y los permisos.");
+}
 export async function createEmployee(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=employeeSchema.parse({...fields(form),exempt_from_ccss:form.get("exempt_from_ccss")==="on"});const {error}=await client.rpc("create_employee",{p_code:v.code,p_name:v.full_name,p_department:v.department,p_position:v.position,p_salary:crcToCents(v.salary),p_pin:v.pin,p_vacation:v.vacation_balance,p_hired_on:v.hired_on,p_cedula:v.cedula,p_email:v.email,p_hours_month:v.hours_month,p_exempt_ccss:v.exempt_from_ccss});dbError(error);revalidatePath("/admin");revalidatePath("/admin/empleados");return {success:"Empleado registrado. Entrega el código y PIN de forma privada."};}catch(e){return failure(e)}}
 export async function resetPin(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({employee_id:z.uuid(),pin:z.string().regex(/^\d{4}$/)}).parse(fields(form));const {error}=await client.rpc("set_employee_pin",{p_employee:v.employee_id,p_pin:v.pin});dbError(error);return {success:"PIN actualizado."}}catch(e){return failure(e)}}
 export async function deleteEmployee(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({id:z.uuid(),confirm_code:z.string().trim().min(1)}).parse(fields(form));const {error}=await client.rpc("delete_employee",{p_id:v.id,p_confirm_code:v.confirm_code});dbError(error);revalidatePath("/admin",'layout');return {success:"Empleado eliminado."}}catch(e){return failure(e)}}
@@ -30,6 +43,18 @@ export async function updatePayroll(_:ActionState,form:FormData):Promise<ActionS
  dbError(error);revalidatePath("/admin/planilla");return {success:"Conceptos guardados (CCSS recalculada sobre el adelanto)."}
 }catch(e){return failure(e)}}
 export async function closePayroll(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const id=z.uuid().parse(form.get("id"));const {error}=await client.rpc("close_payroll",{p_id:id});dbError(error);revalidatePath("/admin/planilla");return {success:"Planilla cerrada. Ya puedes descargar el reporte."}}catch(e){return failure(e)}}
+export async function deletePayroll(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const id=z.uuid().parse(form.get("id"));
+  const confirm=z.string().trim().min(1).parse(form.get("confirm"));
+  const {error}=await client.rpc("delete_payroll_run",{p_id:id,p_confirm:confirm});
+  dbError(error);
+  revalidatePath("/admin/planilla");
+  revalidatePath("/admin/planilla/historial");
+  return {success:"Quincena eliminada. Podés crear otra cuando quieras."};
+ }catch(e){return failure(e)}
+}
 
 export async function syncPayrollOt(_:ActionState,form:FormData):Promise<ActionState>{
  const {client}=await requireRole("admin");
