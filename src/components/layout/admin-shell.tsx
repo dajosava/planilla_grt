@@ -16,7 +16,7 @@ function setCollapsedStore(v:boolean){
  collapseListeners.forEach(l=>l());
 }
 
-type BadgeKey="late"|"incidents"|"reminders"|"ot";
+type BadgeKey="late"|"incidents"|"reminders"|"ot"|"attendanceOt";
 type NavItem={href:string;label:string;icon:typeof LayoutDashboard;badgeKey?:BadgeKey};
 const groups:{label:string;items:NavItem[]}[]=[
  {label:"Ops",items:[
@@ -26,7 +26,7 @@ const groups:{label:string;items:NavItem[]}[]=[
  {label:"Administración",items:[
   {href:"/admin",label:"Resumen",icon:LayoutDashboard},
   {href:"/admin/empleados",label:"Empleados",icon:Users},
-  {href:"/admin/asistencia",label:"Asistencia",icon:Clock3},
+  {href:"/admin/asistencia",label:"Asistencia",icon:Clock3,badgeKey:"attendanceOt"},
   {href:"/admin/turnos",label:"Turnos",icon:CalendarDays},
   {href:"/admin/ausencias",label:"Vacaciones y ausencias",icon:ClipboardList},
   {href:"/admin/planilla",label:"Planilla",icon:Wallet,badgeKey:"ot"},
@@ -44,10 +44,10 @@ const crumbs:Record<string,string>={
 };
 
 export function AdminShell({
- children,displayName,logoutAction,badges={late:0,incidents:0,reminders:0,ot:0},
+ children,displayName,logoutAction,badges={late:0,incidents:0,reminders:0,ot:0,attendanceOt:0},
 }:{
  children:React.ReactNode;displayName:string;logoutAction:()=>Promise<void>;
- badges?:{late:number;incidents:number;reminders:number;ot:number};
+ badges?:{late:number;incidents:number;reminders:number;ot:number;attendanceOt:number};
 }){
  const path=usePathname();
  const [open,setOpen]=useState(false);
@@ -57,7 +57,7 @@ export function AdminShell({
   ()=>false
  );
  const [cmdk,setCmdk]=useState(false);
- const notif=badges.late+badges.incidents+badges.reminders+badges.ot;
+ const notif=badges.late+badges.incidents+badges.reminders+badges.ot+badges.attendanceOt;
 
  useEffect(()=>{
   function onKey(e:KeyboardEvent){
@@ -124,7 +124,7 @@ export function AdminShell({
      <button type="button" className="search-trigger" onClick={()=>setCmdk(true)} aria-label="Buscar (Ctrl K)">
       <Search size={15} aria-hidden="true"/> Buscar… <kbd>Ctrl K</kbd>
      </button>
-     <button type="button" className="notif-btn" aria-label={`Notificaciones${notif?`, ${notif}`:""}`} title={notif?`${badges.late} ops · ${badges.incidents} incidentes · ${badges.ot} extras · ${badges.reminders} recordatorios`:"Sin alertas"}>
+     <button type="button" className="notif-btn" aria-label={`Notificaciones${notif?`, ${notif}`:""}`} title={notif?`${badges.late} ops · ${badges.incidents} incidentes · ${badges.attendanceOt} extras asistencia · ${badges.ot} extras planilla · ${badges.reminders} recordatorios`:"Sin alertas"}>
       <Bell size={17}/>{notif>0&&<span className="dot">{notif>9?"9+":notif}</span>}
      </button>
      <Avatar name={displayName}/>

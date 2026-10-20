@@ -63,6 +63,7 @@ export async function syncPayrollOt(_:ActionState,form:FormData):Promise<ActionS
   const {data,error}=await client.rpc("sync_payroll_ot_from_attendance",{p_run_id:id});
   dbError(error);
   revalidatePath("/admin/planilla");
+  revalidatePath("/admin/asistencia");
   const pending=typeof data==="object"&&data&&"pending" in data?Number((data as {pending:number}).pending):0;
   return {success:pending>0
    ?`Asistencia sincronizada. ${pending} empleado(s) con horas extra pendientes de aprobar.`
@@ -79,6 +80,7 @@ export async function approvePayrollOt(_:ActionState,form:FormData):Promise<Acti
   const {error}=await client.rpc("approve_payroll_ot",{p_item_id:id,p_hours:hours});
   dbError(error);
   revalidatePath("/admin/planilla");
+  revalidatePath("/admin/asistencia");
   return {success:"Horas extra aprobadas e incluidas en el neto."};
  }catch(e){return failure(e)}
 }
@@ -89,6 +91,7 @@ export async function rejectPayrollOt(_:ActionState,form:FormData):Promise<Actio
   const id=z.uuid().parse(form.get("id"));
   const {error}=await client.rpc("reject_payroll_ot",{p_item_id:id});
   dbError(error);
+  revalidatePath("/admin/asistencia");
   revalidatePath("/admin/planilla");
   return {success:"Horas extra rechazadas (no se pagan)."};
  }catch(e){return failure(e)}
