@@ -3,6 +3,7 @@ import {requireRole} from "@/lib/auth";
 import {Heading,Panel,CollapsiblePanel,Table,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
 import {AttendanceOtAlert,type AttendanceOtItem} from "@/components/attendance-ot-alert";
+import {AckAttendanceAlert} from "@/components/ack-attendance-alert";
 import {Badge} from "@/components/ui/badge";
 import {correctSession} from "../actions";
 import {dateTime,todayCR,labels} from "@/lib/format";
@@ -26,14 +27,18 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  let eventsQuery=client.from("attendance_events").select("id,session_id,employee_id,kind,occurred_at,punch_photos(status)").gte("occurred_at",startCR(from)).lt("occurred_at",startCR(addDays(to,2))).order("occurred_at").limit(3000);
  if(employee){query=query.eq("employee_id",employee);eventsQuery=eventsQuery.eq("employee_id",employee)}
 
- const [sessions,open,emp,events,otRpc]=await Promise.all([
+ const [sessions,open,emp,events,otRpc,acks]=await Promise.all([
   query,
   client.from("effective_sessions").select("*").is("ended_at",null).order("started_at"),
   client.from("employees").select("id,code,full_name").order("full_name"),
   eventsQuery,
   client.rpc("list_attendance_ot_alerts",{p_from:from,p_to:to}),
+  client.from("attendance_alert_acks").select("kind,ref_id").in("kind",["missing_photo","missing_exit"]),
  ]);
  if(sessions.error||open.error||emp.error||events.error)throw new Error("No se pudo cargar la asistencia");
+
+ const ackedPhoto=new Set((acks.data??[]).filter(a=>a.kind==="missing_photo").map(a=>a.ref_id));
+ const ackedExit=new Set((acks.data??[]).filter(a=>a.kind==="missing_exit").map(a=>a.ref_id));
 
  type PunchEvent={id:string;session_id:string;employee_id:string;kind:string;occurred_at:string;photo:string|null};
  const punches:PunchEvent[]=(events.data??[]).map(ev=>{
@@ -42,10 +47,10 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  });
  const bySession=new Map<string,PunchEvent[]>();
  for(const p of punches)bySession.set(p.session_id,[...(bySession.get(p.session_id)??[]),p]);
- const noPhoto=punches.filter(p=>p.photo==="missing"&&p.occurred_at<startCR(addDays(to,1)));
+ const noPhoto=punches.filter(p=>p.photo==="missing"&&p.occurred_at<startCR(addDays(to,1))&&!ackedPhoto.has(p.id));
  const names=new Map(emp.data?.map(e=>[e.id,`${e.full_name} (${e.code})`]));
  const missingExit=(s:{ended_at:string|null;started_at:string})=>!s.ended_at&&(s.started_at<startCR(today)||openHours(s.started_at)>MAX_OPEN_HOURS);
- const alerts=(open.data??[]).filter(missingExit);
+ const alerts=(open.data??[]).filter(s=>missingExit(s)&&!ackedExit.has(s.id));
  const rows=sessions.data??[];
  const correctable=[...alerts,...rows.filter(r=>!alerts.some(a=>a.id===r.id))];
  const link=(desde:string,hasta:string)=>`/admin/asistencia?${new URLSearchParams({desde,hasta,...(employee?{empleado:employee}:{})})}`;
@@ -77,13 +82,16 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   {alerts.length>0&&(
    <section className="panel attendance-alerts" role="alert">
     <h2>⚠ {alerts.length===1?"1 jornada sin marca de salida":`${alerts.length} jornadas sin marca de salida`}</h2>
-    <p className="muted small">Estas jornadas son de días anteriores o llevan más de {MAX_OPEN_HOURS} horas abiertas. Corrígelas abajo en “Corregir una jornada” indicando la hora real de salida.</p>
-    <Table headers={["Empleado","Entrada","Tiempo abierta"]}>
+    <p className="muted small">Estas jornadas son de días anteriores o llevan más de {MAX_OPEN_HOURS} horas abiertas. Corrígelas abajo o aceptá el aviso si ya lo revisaste.</p>
+    <Table headers={["Empleado","Entrada","Tiempo abierta","Acción"]}>
      {alerts.map(s=>(
       <tr key={s.id}>
        <td><strong>{names.get(s.employee_id)}</strong></td>
        <td>{dateTime(s.started_at)}</td>
        <td><span className="badge danger">{Math.floor(openHours(s.started_at))} h sin salida</span></td>
+       <td className="alert-row-actions">
+        <AckAttendanceAlert kind="missing_exit" refId={s.id} label="Aceptar aviso"/>
+       </td>
       </tr>
      ))}
     </Table>
@@ -93,13 +101,16 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   {noPhoto.length>0&&(
    <section className="panel attendance-alerts">
     <h2>📷 {noPhoto.length===1?"1 marca sin foto":`${noPhoto.length} marcas sin foto`} en este rango</h2>
-    <p className="muted small">La cámara de la tablet no estaba disponible al marcar. Revisa el permiso de cámara en la tablet y confirma con el empleado que la marca es correcta.</p>
-    <Table headers={["Empleado","Marca","Hora"]}>
+    <p className="muted small">La cámara de la tablet no estaba disponible al marcar. Confirmá con el empleado y aceptá el aviso si la marca es válida.</p>
+    <Table headers={["Empleado","Marca","Hora","Acción"]}>
      {noPhoto.map(p=>(
       <tr key={p.id}>
        <td><strong>{names.get(p.employee_id)}</strong></td>
        <td>{labels[p.kind]}</td>
        <td>{dateTime(p.occurred_at)}</td>
+       <td className="alert-row-actions">
+        <AckAttendanceAlert kind="missing_photo" refId={p.id} label="Aceptar aviso"/>
+       </td>
       </tr>
      ))}
     </Table>

@@ -14,6 +14,7 @@ const routes=[
  {href:"/admin/turnos",label:"Turnos",icon:CalendarDays,group:"Admin"},
  {href:"/admin/ausencias",label:"Vacaciones y ausencias",icon:ClipboardList,group:"Admin"},
  {href:"/admin/planilla",label:"Planilla",icon:Wallet,group:"Admin"},
+ {href:"/admin/planilla/aguinaldo",label:"Aguinaldo",icon:Wallet,group:"Admin"},
  {href:"/admin/recordatorios",label:"Recordatorios",icon:AlarmClock,group:"Admin"},
  {href:"/admin/auditoria",label:"Auditoría",icon:ScrollText,group:"Admin"},
 ];

@@ -1,8 +1,9 @@
 import {describe,it,expect} from "vitest";
 import {
- calculatePayroll,crcToCents,csvCell,
+ calculatePayroll,crcToCents,crcToCentsSigned,csvCell,
  calculateFortnight,hourlyRateCents,fortnightAdvanceCents,ccssCents,
- aguinaldoCents,fortnightBounds,DEFAULT_HOURS_MONTH,CCSS_RATE,
+ aguinaldoCents,aguinaldoPeriod,defaultAguinaldoYear,labelAguinaldo,
+ fortnightBounds,DEFAULT_HOURS_MONTH,CCSS_RATE,
 } from "../src/lib/payroll";
 
 describe("Planilla con centavos enteros",()=>{
@@ -72,6 +73,25 @@ describe("Lógica quincenal GRT (Excel)",()=>{
 
  it("aguinaldo = (ordinario + extras) / 12",()=>{
   expect(aguinaldoCents(4_190_827_20,1_523_661_00)).toBe(Math.round((4_190_827_20+1_523_661_00)/12));
+ });
+
+ it("aguinaldo con otros pagos = bruto / 12",()=>{
+  const ordinary=2_000_000_00;
+  const extras=500_000_00;
+  const other=100_000_00;
+  expect(aguinaldoCents(ordinary,extras+other)).toBe(Math.round((ordinary+extras+other)/12));
+ });
+
+ it("período legal de aguinaldo dic N-1 → nov N",()=>{
+  expect(aguinaldoPeriod(2026)).toEqual({year:2026,start:"2025-12-01",end:"2026-11-30"});
+  expect(labelAguinaldo(2026)).toBe("Aguinaldo 2026");
+  expect(defaultAguinaldoYear("2026-10-20")).toBe(2026);
+ });
+
+ it("ajuste CRC con signo",()=>{
+  expect(crcToCentsSigned("-150.50")).toBe(-15050);
+  expect(crcToCentsSigned("10")).toBe(1000);
+  expect(crcToCentsSigned("0")).toBe(0);
  });
 
  it("límites de quincena",()=>{

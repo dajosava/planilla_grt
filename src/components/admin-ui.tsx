@@ -4,14 +4,12 @@ import {EmptyState} from "@/components/ui/empty-state";
 
 export function Heading({title,description,actions}:{title:string;description?:string;actions?:ReactNode}){
  return <div className="page-heading">
+  <p className="eyebrow">GASOLINERA RÍO TEMPISQUE</p>
   <div className="page-heading-row">
-   <div>
-    <p className="eyebrow">GASOLINERA RÍO TEMPISQUE</p>
-    <h1>{title}</h1>
-    {description?<p className="muted">{description}</p>:null}
-   </div>
-   {actions&&<div className="actions">{actions}</div>}
+   <h1>{title}</h1>
+   {actions?<div className="actions">{actions}</div>:null}
   </div>
+  {description?<p className="muted page-heading-desc">{description}</p>:null}
  </div>;
 }
 export function Panel({title,children,action}:{title:string;children:ReactNode;action?:ReactNode}){

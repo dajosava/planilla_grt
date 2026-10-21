@@ -27,6 +27,17 @@ export function crcToCents(value:string):number{
  return Number(whole)*100+Number(fraction.padEnd(2,"0"));
 }
 
+/** CRC con signo (ajuste de aguinaldo) → centavos. */
+export function crcToCentsSigned(value:string):number{
+ const raw=value.trim();
+ if(raw===""||raw==="-"||raw==="+")return 0;
+ const neg=raw.startsWith("-");
+ const digits=raw.replace(/^[-+]/,"");
+ if(!/^\d{1,9}(\.\d{1,2})?$/.test(digits))throw new Error("Usa un monto con hasta dos decimales (puede ser negativo).");
+ const cents=crcToCents(digits);
+ return neg?-cents:cents;
+}
+
 export function csvCell(value:unknown):string{
  let text=String(value??"");
  if(/^[=+@\-\t\r\n]/.test(text))text="'"+text;
@@ -149,9 +160,37 @@ export function calculateFortnight(input:FortnightInput):FortnightResult{
  };
 }
 
-/** Aguinaldo = (ordinario_acum + extras_acum) / 12 */
+/**
+ * Aguinaldo CR = suma de brutos salariales / 12.
+ * Bruto = ordinario + extras (+ otros pagos / comisiones / bonos si se pasan en overtimeAccum o sumados antes).
+ * Equivale a round((ordinary + extras + other) / 12).
+ */
 export function aguinaldoCents(ordinaryAccumCents:number,overtimeAccumCents:number):number{
  return Math.round((ordinaryAccumCents+overtimeAccumCents)/12);
+}
+
+/** Período legal: 1 dic (N−1) → 30 nov (N). Etiqueta “Aguinaldo N”. */
+export function aguinaldoPeriod(year:number):{start:string;end:string;year:number}{
+ if(!Number.isInteger(year)||year<2000||year>2100)throw new Error("Año de aguinaldo inválido.");
+ return {
+  year,
+  start:`${year-1}-12-01`,
+  end:`${year}-11-30`,
+ };
+}
+
+/** Año de aguinaldo sugerido según fecha CR (YYYY-MM-DD). */
+export function defaultAguinaldoYear(today=todayLike()):number{
+ const y=Number(today.slice(0,4));
+ return y;
+}
+
+function todayLike():string{
+ return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Costa_Rica",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+}
+
+export function labelAguinaldo(year:number):string{
+ return `Aguinaldo ${year}`;
 }
 
 /** Fechas de una quincena en CR a partir de YYYY-MM y half 1|2. */

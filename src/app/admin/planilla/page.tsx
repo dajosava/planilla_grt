@@ -61,6 +61,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
    title="Planilla quincenal"
    description="Tres planillas separadas: Gasolinera, Supermercado y Transporte. Horas >8/día se proponen como extras para tu aprobación."
    actions={<>
+    <Link className="button secondary" href="/admin/planilla/aguinaldo">Aguinaldo</Link>
     <Link className="button secondary" href="/admin/planilla/historial">Historial de pagos</Link>
     <Link className="button secondary" href="/admin/empleados">Ver empleados</Link>
    </>}
@@ -155,7 +156,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
 
    {isDraft?<>
     <CollapsiblePanel title="3 · Capturar extras y deducciones" open>
-     <div className="button-row" style={{marginBottom:12}}>
+     <div className="button-row button-row-hint" style={{marginBottom:14}}>
       <ActionForm action={syncPayrollOt} submit="Actualizar extras desde asistencia">
        <input type="hidden" name="id" value={selected.id}/>
       </ActionForm>
@@ -169,55 +170,57 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
       const otRejected=i.ot_status==="rejected";
       return <details key={i.id} className={`payroll-emp-edit${otPending?" ot-pending":""}`} open={otPending||undefined}>
        <summary>
-        <span>{i.employee_name}</span>
+        <span className="payroll-emp-name">{i.employee_name}</span>
         <strong className="tabular">{money(i.net_cents)}</strong>
         {otPending?<Badge tone="danger">Extra {Number(i.suggested_ot_hours).toFixed(2)} h</Badge>:
          otApproved?<Badge tone="approved">OT aprobadas</Badge>:
          otRejected?<Badge tone="pending">OT rechazadas</Badge>:
          <Badge tone={i.reviewed?"approved":"pending"}>{i.reviewed?"✓":"…"}</Badge>}
        </summary>
-       <p className="muted small">Adelanto {money(i.base_cents)} · Valor hora {money(i.hourly_rate_cents??0)}{i.exempt_from_ccss?" · Exento CCSS":""}</p>
+       <div className="payroll-emp-body">
+        <p className="muted small">Adelanto {money(i.base_cents)} · Valor hora {money(i.hourly_rate_cents??0)}{i.exempt_from_ccss?" · Exento CCSS":""}</p>
 
-       {otPending&&(
-        <div className="alert" role="status">
-         <strong>Sugerido desde asistencia:</strong> {Number(i.suggested_ot_hours).toFixed(2)} h extra
-         {days.length>0&&(
-          <ul className="ot-day-list">
-           {days.map(d=>(
-            <li key={d.work_date}>{dateOnly(d.work_date)}: trabajó {Number(d.worked_hours).toFixed(2)} h → extra {Number(d.ot_hours).toFixed(2)} h</li>
-           ))}
-          </ul>
-         )}
-         <div className="row-actions" style={{marginTop:10}}>
-          <ActionForm action={approvePayrollOt} submit={`Aprobar ${Number(i.suggested_ot_hours).toFixed(2)} h`}>
-           <input type="hidden" name="id" value={i.id}/>
-          </ActionForm>
-          <ActionForm action={approvePayrollOt} submit="Aprobar con ajuste">
-           <input type="hidden" name="id" value={i.id}/>
-           <label>Horas a pagar<input name="hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.suggested_ot_hours)} required/></label>
-          </ActionForm>
-          <ActionForm action={rejectPayrollOt} submit="Rechazar extras">
-           <input type="hidden" name="id" value={i.id}/>
-          </ActionForm>
+        {otPending&&(
+         <div className="alert" role="status">
+          <strong>Sugerido desde asistencia:</strong> {Number(i.suggested_ot_hours).toFixed(2)} h extra
+          {days.length>0&&(
+           <ul className="ot-day-list">
+            {days.map(d=>(
+             <li key={d.work_date}>{dateOnly(d.work_date)}: trabajó {Number(d.worked_hours).toFixed(2)} h → extra {Number(d.ot_hours).toFixed(2)} h</li>
+            ))}
+           </ul>
+          )}
+          <div className="row-actions" style={{marginTop:10}}>
+           <ActionForm action={approvePayrollOt} submit={`Aprobar ${Number(i.suggested_ot_hours).toFixed(2)} h`}>
+            <input type="hidden" name="id" value={i.id}/>
+           </ActionForm>
+           <ActionForm action={approvePayrollOt} submit="Aprobar con ajuste">
+            <input type="hidden" name="id" value={i.id}/>
+            <label>Horas a pagar<input name="hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.suggested_ot_hours)} required/></label>
+           </ActionForm>
+           <ActionForm action={rejectPayrollOt} submit="Rechazar extras">
+            <input type="hidden" name="id" value={i.id}/>
+           </ActionForm>
+          </div>
          </div>
-        </div>
-       )}
+        )}
 
-       {(otApproved||otRejected)&&days.length>0&&(
-        <p className="muted small">Detalle asistencia: {days.map(d=>`${dateOnly(d.work_date)} ${Number(d.ot_hours).toFixed(2)}h`).join(" · ")}</p>
-       )}
+        {(otApproved||otRejected)&&days.length>0&&(
+         <p className="muted small">Detalle asistencia: {days.map(d=>`${dateOnly(d.work_date)} ${Number(d.ot_hours).toFixed(2)}h`).join(" · ")}</p>
+        )}
 
-       <ActionForm action={updatePayroll}>
-        <input name="id" type="hidden" value={i.id}/>
-        <label>Horas extra (1.5×)<input name="ot_hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.ot_hours??0)}/><small className="muted">Si las editás manualmente se consideran aprobadas.</small></label>
-        <label>Horas doble (2×)<input name="double_hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.double_hours??0)}/></label>
-        <label>Otros pagos (CRC)<input name="other_pay" type="number" min="0" step="0.01" defaultValue={(Number(i.other_pay_cents??0))/100}/></label>
-        <label>Faltantes pista (CRC)<input name="shortage" type="number" min="0" step="0.01" defaultValue={(Number(i.shortage_cents??0))/100}/></label>
-        <label>Facturas / recibos (CRC)<input name="receipt" type="number" min="0" step="0.01" defaultValue={(Number(i.receipt_cents??0))/100}/></label>
-        <label>Otras deducciones (CRC)<input name="other_deduction" type="number" min="0" step="0.01" defaultValue={(Number(i.other_deduction_cents??0))/100}/></label>
-        <label>Notas<textarea name="note" maxLength={2000} defaultValue={i.note??""}/></label>
-        <label className="checkbox"><input name="reviewed" type="checkbox" defaultChecked={!!i.reviewed}/>Marcar como revisado</label>
-       </ActionForm>
+        <ActionForm action={updatePayroll}>
+         <input name="id" type="hidden" value={i.id}/>
+         <label>Horas extra (1.5×)<input name="ot_hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.ot_hours??0)}/><small className="muted">Si las editás manualmente se consideran aprobadas.</small></label>
+         <label>Horas doble (2×)<input name="double_hours" type="number" min="0" max="400" step="0.01" defaultValue={Number(i.double_hours??0)}/></label>
+         <label>Otros pagos (CRC)<input name="other_pay" type="number" min="0" step="0.01" defaultValue={(Number(i.other_pay_cents??0))/100}/></label>
+         <label>Faltantes pista (CRC)<input name="shortage" type="number" min="0" step="0.01" defaultValue={(Number(i.shortage_cents??0))/100}/></label>
+         <label>Facturas / recibos (CRC)<input name="receipt" type="number" min="0" step="0.01" defaultValue={(Number(i.receipt_cents??0))/100}/></label>
+         <label>Otras deducciones (CRC)<input name="other_deduction" type="number" min="0" step="0.01" defaultValue={(Number(i.other_deduction_cents??0))/100}/></label>
+         <label>Notas<textarea name="note" maxLength={2000} defaultValue={i.note??""}/></label>
+         <label className="checkbox"><input name="reviewed" type="checkbox" defaultChecked={!!i.reviewed}/>Marcar como revisado</label>
+        </ActionForm>
+       </div>
       </details>;
      })}
     </CollapsiblePanel>
