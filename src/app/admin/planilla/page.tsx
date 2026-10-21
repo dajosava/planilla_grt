@@ -234,6 +234,11 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
       <p className="muted">Todo revisado. Al cerrar se bloquea la quincena de {company} y podés descargar el reporte.</p>
      )}
      <p className="payroll-close-total">Neto a depositar ({company}): <strong className="amount">{money(totalNet)}</strong></p>
+     <div className="button-row" style={{marginBottom:14}}>
+      <a className="button secondary" href={"/admin/planilla/"+selected.id+"/reporte"}>
+       Vista previa de comprobantes
+      </a>
+     </div>
      <ActionForm action={closePayroll} submit="Cerrar quincena y habilitar pago">
       <input type="hidden" name="id" value={selected.id}/>
      </ActionForm>
@@ -249,9 +254,9 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
     </CollapsiblePanel>
    </>:
     <Panel title="5 · Pago y comprobantes">
-     <p className="muted">Quincena de {company} cerrada. Descargá el reporte para el banco o impresión. Si el cierre fue un error, podés eliminarla y volver a crear la quincena.</p>
+     <p className="muted">Quincena de {company} cerrada. Los comprobantes de pago (uno por empleado) están listos para imprimir o guardar PDF. El envío por correo se conectará en el siguiente paso.</p>
      <div className="button-row">
-      <a className="button" href={"/admin/planilla/"+selected.id+"/reporte"}>Reporte imprimible / PDF</a>
+      <a className="button" href={"/admin/planilla/"+selected.id+"/reporte"}>Comprobantes / PDF</a>
       <a className="button secondary" href={"/api/reportes/"+selected.id}>CSV para Excel / banco</a>
       <DeletePayroll
        id={selected.id}

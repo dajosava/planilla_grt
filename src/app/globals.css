@@ -904,8 +904,54 @@ tr.ot-row td{background:rgba(245,165,36,.06)}
 .employee-delete{margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
 .audit-json{max-width:380px;max-height:260px;overflow:auto;font-size:10px;background:var(--bg-app);padding:12px;border-radius:8px;border:1px solid var(--border);color:var(--text-secondary)}
 .report{background:var(--surface);padding:30px}
+.report-toolbar{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
+.report-summary{margin-bottom:28px}
 .pre-wrap{white-space:pre-wrap}
 .payslip{border-top:1px solid var(--border);margin-top:30px;padding-top:25px}
+.comprobante-stack{display:flex;flex-direction:column;gap:28px}
+.comprobante{
+  background:#FFFFFF;color:#111111;border:2px solid #111111;border-radius:0;
+  padding:22px 24px 20px;max-width:900px;margin:0 auto;width:100%;
+  font-family:Arial,Helvetica,sans-serif;box-sizing:border-box;
+}
+.comprobante-head{text-align:center;margin-bottom:16px}
+.comprobante-company{
+  margin:0;font-size:15px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#111;
+}
+.comprobante-title{margin:4px 0 0;font-size:14px;font-weight:700;color:#111}
+.comprobante-meta{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin-bottom:16px;font-size:12px;
+}
+.comprobante-meta-col p{margin:0 0 6px;display:flex;gap:6px;align-items:baseline}
+.comprobante-meta-col span{flex:0 0 auto;font-weight:600}
+.comprobante-meta-col strong{
+  flex:1 1 auto;min-width:0;font-weight:500;border-bottom:1px solid #333;
+  padding-bottom:1px;line-height:1.35;
+}
+.comprobante-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #111;border-radius:0;
+}
+.comprobante-table{
+  width:100%;border-collapse:collapse;font-size:12px;color:#111;background:#fff;
+}
+.comprobante-table:first-child{border-right:1px solid #111}
+.comprobante-table th,.comprobante-table td{
+  border-bottom:1px solid #333;padding:7px 8px;vertical-align:bottom;color:#111;
+  background:#fff;
+}
+.comprobante-table th{
+  font-weight:700;text-transform:none;letter-spacing:0;font-size:12px;
+  background:#fff;color:#111;position:static;border-bottom:1px solid #111;
+}
+.comprobante-table .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.comprobante-table tbody tr:last-child td{border-bottom:0}
+.comprobante-total td{font-weight:700;border-top:1px solid #111;border-bottom:0!important}
+.comprobante-net td{font-weight:700;border-top:1px solid #111;padding-top:10px}
+.comprobante-note{margin:12px 0 0;font-size:11px;color:#333}
+@media(max-width:640px){
+  .comprobante-meta,.comprobante-grid{grid-template-columns:1fr}
+  .comprobante-table:first-child{border-right:0;border-bottom:1px solid #111}
+}
 .mobile-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px}
 
 @media(min-width:1100px){.search-trigger{display:inline-flex}}
@@ -947,5 +993,12 @@ tr.ot-row td{background:rgba(245,165,36,.06)}
   .shell,.workspace{display:block}
   .content{padding:0;max-width:none}
   button,.button{display:none}
-  @page{size:A4;margin:15mm}
+  .report{background:white;padding:0;color:black}
+  .comprobante-stack{gap:0}
+  .comprobante{
+    border-color:#000;max-width:none;margin:0 0 12mm;page-break-after:always;break-after:page;
+    box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  .comprobante:last-child{page-break-after:auto;break-after:auto;margin-bottom:0}
+  @page{size:A4;margin:12mm}
 }
