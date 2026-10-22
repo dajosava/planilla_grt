@@ -68,58 +68,60 @@ function EditTemplateModal({
     aria-labelledby={`tpl-edit-${template.id}`}
     onClick={e=>e.stopPropagation()}
    >
-    <div className="modal-head">
-     <div>
-      <p className="eyebrow">Editar plantilla</p>
-      <h2 id={`tpl-edit-${template.id}`}>{template.title}</h2>
-     </div>
-     <button
-      type="button"
-      className="btn-icon secondary"
-      onClick={onClose}
-      disabled={pending}
-      aria-label="Cerrar"
-     >
-      <X size={18}/>
-     </button>
-    </div>
-
-    <form action={formAction} className="form-grid modal-form-grid template-edit-form">
+    <form action={formAction} className="template-modal-form">
      <input type="hidden" name="id" value={template.id}/>
-     <label>Título<input name="title" defaultValue={template.title} required minLength={3} maxLength={120}/></label>
-     <label>Área
-      <select name="area" defaultValue={template.area}>
-       {OPS_AREAS.map(a=><option key={a}>{a}</option>)}
-      </select>
-     </label>
-     <label>Recurrencia
-      <select name="recurrence" defaultValue={template.recurrence}>
-       <option value="daily">Diaria</option>
-       <option value="weekdays">Lunes a viernes</option>
-       <option value="once">Una sola vez</option>
-      </select>
-     </label>
-     <div className="template-due-block">
+     <div className="modal-head">
+      <div className="modal-head-copy">
+       <p className="eyebrow">Editar plantilla</p>
+       <h2 id={`tpl-edit-${template.id}`}>{template.title}</h2>
+      </div>
+      <div className="modal-head-actions">
+       <label className="template-active-check template-active-check-header">
+        <input type="checkbox" name="active" defaultChecked={template.active}/>
+        <span>Activa</span>
+       </label>
+       <button
+        type="button"
+        className="btn-icon secondary"
+        onClick={onClose}
+        disabled={pending}
+        aria-label="Cerrar"
+       >
+        <X size={18}/>
+       </button>
+      </div>
+     </div>
+
+     <div className="form-grid modal-form-grid template-edit-form">
+      <label>Título<input name="title" defaultValue={template.title} required minLength={3} maxLength={120}/></label>
+      <label>Área
+       <select name="area" defaultValue={template.area}>
+        {OPS_AREAS.map(a=><option key={a}>{a}</option>)}
+       </select>
+      </label>
+      <label>Recurrencia
+       <select name="recurrence" defaultValue={template.recurrence}>
+        <option value="daily">Diaria</option>
+        <option value="weekdays">Lunes a viernes</option>
+        <option value="once">Una sola vez</option>
+       </select>
+      </label>
       <label className="template-due-label">Vence (minutos)
        <input name="due_offset_minutes" type="number" defaultValue={template.due_offset_minutes} min={5} max={1440} required/>
       </label>
-      <label className="template-active-check">
-       <input type="checkbox" name="active" defaultChecked={template.active}/>
-       <span>Activa</span>
-      </label>
-     </div>
-     <div className="template-assignee-full">
-      <AssigneeSelect employees={employees} defaultValue={template.assignee?.id}/>
-     </div>
-     <ChecklistEditor
-      key={template.id}
-      initial={template.items.length?template.items:[{label:"",requires_photo:false,for_bitacora:false}]}
-     />
-     <div className="form-footer">
-      {state.error&&<p role="alert" className="alert error">{state.error}</p>}
-      {state.success&&<p role="status" className="alert success">{state.success}</p>}
-      <button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancelar</button>
-      <button disabled={pending}>{pending?"Guardando…":"Guardar cambios"}</button>
+      <div className="template-assignee-full">
+       <AssigneeSelect employees={employees} defaultValue={template.assignee?.id}/>
+      </div>
+      <ChecklistEditor
+       key={template.id}
+       initial={template.items.length?template.items:[{label:"",requires_photo:false,for_bitacora:false}]}
+      />
+      <div className="form-footer">
+       {state.error&&<p role="alert" className="alert error">{state.error}</p>}
+       {state.success&&<p role="status" className="alert success">{state.success}</p>}
+       <button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancelar</button>
+       <button disabled={pending}>{pending?"Guardando…":"Guardar cambios"}</button>
+      </div>
      </div>
     </form>
    </div>
@@ -186,18 +188,16 @@ export function TemplateCreateFields({employees}:{employees:Emp[]}){
      <option value="once">Una sola vez</option>
     </select>
    </label>
-   <div className="template-due-block">
-    <label className="template-due-label">Vence (minutos desde medianoche CR)
-     <input name="due_offset_minutes" type="number" defaultValue={90} min={5} max={1440} required/>
-    </label>
-    <label className="template-active-check">
-     <input type="checkbox" name="active" defaultChecked/>
-     <span>Activa</span>
-    </label>
-   </div>
+   <label className="template-due-label">Vence (minutos desde medianoche CR)
+    <input name="due_offset_minutes" type="number" defaultValue={90} min={5} max={1440} required/>
+   </label>
    <div className="template-assignee-full">
     <AssigneeSelect employees={employees}/>
    </div>
+   <label className="template-active-check">
+    <input type="checkbox" name="active" defaultChecked/>
+    <span>Activa</span>
+   </label>
    <ChecklistEditor/>
   </div>
  );
