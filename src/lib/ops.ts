@@ -1,9 +1,9 @@
 import "server-only";
 import {cookies} from "next/headers";
 import {requireRole} from "./auth";
+export {OPS_AREAS,type OpsArea} from "./ops-areas";
 
 export const OPS_COOKIE="grt_ops_session";
-export const OPS_AREAS=["Pista","Baños","Tienda","Caja","Seguridad","Mantenimiento","General"] as const;
 
 export async function opsToken(){
  const jar=await cookies();
