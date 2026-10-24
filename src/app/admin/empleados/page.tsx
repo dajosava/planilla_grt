@@ -1,13 +1,12 @@
 import Link from "next/link";
 import {employees} from "@/lib/data";
-import {money,dateOnly,todayCR,cedula} from "@/lib/format";
+import {todayCR} from "@/lib/format";
 import {Heading,CollapsiblePanel,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
 import {EmployeeSelect} from "@/components/employee-select";
-import {DeleteEmployee} from "@/components/delete-employee";
-import {Badge} from "@/components/ui/badge";
+import {EmployeesDirectory,type EmployeeListItem} from "@/components/employees-directory";
 import {COMPANIES,isCompany} from "@/lib/companies";
-import {createEmployee,updateEmployee,resetPin,vacationBalance,toggleEmployee,deleteEmployee} from "../actions";
+import {createEmployee,resetPin,vacationBalance} from "../actions";
 
 export default async function Page({searchParams}:{searchParams:Promise<{area?:string}>}){
  const list=await employees();
@@ -16,6 +15,23 @@ export default async function Page({searchParams}:{searchParams:Promise<{area?:s
  const filtered=area?list.filter(e=>e.department===area):list;
  const counts=Object.fromEntries(COMPANIES.map(c=>[c,list.filter(e=>e.department===c).length])) as Record<string,number>;
  const today=todayCR();
+
+ const directory:EmployeeListItem[]=filtered.map(e=>({
+  id:e.id,
+  code:e.code,
+  full_name:e.full_name,
+  cedula:e.cedula??null,
+  email:e.email??null,
+  department:e.department,
+  position:e.position,
+  hired_on:e.hired_on,
+  monthly_salary_cents:Number(e.monthly_salary_cents),
+  hours_per_month:e.hours_per_month==null?null:Number(e.hours_per_month),
+  vacation_balance:Number(e.vacation_balance),
+  exempt_from_ccss:!!e.exempt_from_ccss,
+  active:!!e.active,
+ }));
+
  return <>
   <Heading title="Empleados" description="Cada persona pertenece a una sociedad: Gasolinera, Supermercado o Transporte (planilla separada)."/>
   <CollapsiblePanel title={area?`Directorio · ${area}`:"Directorio"}>
@@ -25,45 +41,12 @@ export default async function Page({searchParams}:{searchParams:Promise<{area?:s
      <Link key={c} className={area===c?"active":""} href={`/admin/empleados?area=${encodeURIComponent(c)}`}>{c} ({counts[c]??0})</Link>
     ))}
    </nav>
-   <p className="muted small">{area?`Mostrando ${filtered.length} de ${area}. `:""}Tocá un empleado para ver y editar sus datos.</p>
-   <div className="directory-scroll">
-    {!filtered.length?<Empty text={area?`No hay empleados en ${area}.`:"Registra el primer empleado para comenzar."}/>:filtered.map(e=>(
-     <details key={e.id} className="employee-dir-row">
-      <summary>
-       <span className="employee-dir-main">
-        <strong>{e.full_name}</strong>
-        <small>{e.code} · {cedula(e.cedula)}</small>
-       </span>
-       <span className="employee-dir-meta muted small">{e.department} · {e.position}</span>
-       <strong className="tabular">{money(e.monthly_salary_cents)}</strong>
-       <Badge tone={e.active?"approved":"pending"}>{e.active?"Activo":"Inactivo"}</Badge>
-      </summary>
-      <div className="employee-dir-body">
-       <p className="muted small">Ingreso {dateOnly(e.hired_on)} · Vacaciones {e.vacation_balance} días{e.email?` · ${e.email}`:""}</p>
-       <ActionForm action={updateEmployee} submit="Guardar cambios">
-        <input name="id" type="hidden" value={e.id}/>
-        <label>Nombre<input name="full_name" defaultValue={e.full_name} required minLength={3} maxLength={120}/></label>
-        <label>Cédula<input name="cedula" defaultValue={e.cedula??""} inputMode="numeric" pattern="[0-9\-]{9,14}" placeholder="1-2345-6789" required minLength={9} maxLength={14}/></label>
-        <label>Correo electrónico<input name="email" type="email" defaultValue={e.email??""} placeholder="empleado@ejemplo.com" required maxLength={254} autoComplete="email"/></label>
-        <label>Sociedad / planilla<select name="department" defaultValue={e.department}>{COMPANIES.map(v=><option key={v}>{v}</option>)}</select></label>
-        <label>Puesto<input name="position" defaultValue={e.position} required minLength={2} maxLength={80}/></label>
-        <label>Fecha de ingreso<input name="hired_on" type="date" defaultValue={e.hired_on} max={today} min="1950-01-01" required/></label>
-        <label>Salario mensual (CRC)<input name="salary" type="number" min="0" step="0.01" defaultValue={e.monthly_salary_cents/100} required/></label>
-        <label>Horas ordinarias / mes<input name="hours_month" type="number" min="1" max="400" step="0.01" defaultValue={Number(e.hours_per_month??243.36)} required/><small className="muted">Default 243.36 (30.42×8). Define el valor hora.</small></label>
-        <label className="checkbox"><input name="exempt_from_ccss" type="checkbox" defaultChecked={!!e.exempt_from_ccss}/>Exento de CCSS (caso especial)</label>
-       </ActionForm>
-       <div className="row-actions employee-delete">
-        <form action={toggleEmployee}>
-         <input type="hidden" name="id" value={e.id}/>
-         <input type="hidden" name="active" value={String(!e.active)}/>
-         <button className="secondary small-button">{e.active?"Desactivar":"Reactivar"}</button>
-        </form>
-        <DeleteEmployee id={e.id} name={e.full_name} code={e.code} action={deleteEmployee}/>
-       </div>
-      </div>
-     </details>
-    ))}
-   </div>
+   {area?<p className="muted small">Mostrando {filtered.length} de {area}.</p>:null}
+   {!list.length?<Empty text="Registra el primer empleado para comenzar."/>:(
+    !filtered.length?<Empty text={area?`No hay empleados en ${area}.`:"No hay empleados."}/>:(
+     <EmployeesDirectory employees={directory} today={today}/>
+    )
+   )}
   </CollapsiblePanel>
 
   <CollapsiblePanel title="Registrar empleado">

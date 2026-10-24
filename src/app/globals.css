@@ -358,6 +358,39 @@ textarea{min-height:95px;resize:vertical}
   max-height:min(420px,55vh);overflow:auto;border:1px solid var(--border);border-radius:12px;
   background:var(--bg-app);min-width:0;scrollbar-width:thin;padding:8px;display:flex;flex-direction:column;gap:8px;
 }
+.directory-box{
+  border:1px solid var(--border);border-radius:12px;background:var(--bg-app);
+  min-width:0;overflow:hidden;display:flex;flex-direction:column;
+}
+.directory-box-head{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-bottom:1px solid var(--border);
+  background:var(--surface);min-width:0;
+}
+.directory-search{
+  display:flex!important;flex-direction:row!important;align-items:center;gap:8px;
+  flex:1 1 auto;min-width:0;margin:0;padding:0 10px;min-height:38px;
+  border:1px solid var(--border);border-radius:10px;background:var(--bg-app);color:var(--text);
+}
+.directory-search svg{flex:0 0 auto;color:var(--text-muted);opacity:.9}
+.directory-search input{
+  flex:1 1 auto;min-width:0;width:auto;margin:0;padding:0;border:0;background:transparent;
+  color:var(--text);font-size:13px;font-weight:500;min-height:0;box-shadow:none;
+}
+.directory-search input::-webkit-search-cancel-button,
+.directory-search input::-webkit-search-decoration{appearance:none;-webkit-appearance:none;display:none}
+.directory-search input:focus{outline:none;box-shadow:none}
+.directory-search:focus-within{border-color:#3A5680}
+.directory-search-clear{
+  flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  width:24px;height:24px;margin:0;padding:0;border:0;border-radius:6px;
+  background:transparent;color:var(--text-muted);cursor:pointer;
+}
+.directory-search-clear:hover{background:var(--surface-2);color:var(--text)}
+.directory-search-meta{flex:0 0 auto;white-space:nowrap;margin:0}
+.directory-scroll-in-box{
+  border:0;border-radius:0;max-height:min(380px,50vh);
+}
 .reminder-docs{
   margin:12px 0 16px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg-app);
 }
@@ -910,6 +943,25 @@ tr.ot-row td{background:rgba(245,165,36,.06)}
 }
 .payroll-period-banner strong{font-size:15px}
 .payroll-close-total{font-size:16px;margin:12px 0 16px}
+.payroll-dir-row{
+  width:100%;text-align:left;cursor:pointer;
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;
+  padding:12px 14px;
+}
+.payroll-dir-row.ot-pending{border-color:rgba(255,107,107,.55);box-shadow:0 0 0 1px rgba(255,107,107,.2)}
+.payroll-dir-meta{flex:1 1 180px;min-width:0}
+.payroll-modal-summary{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;
+  margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;
+  background:var(--bg-app);text-align:left;
+}
+.payroll-modal-summary > div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.payroll-modal-summary strong{font-size:14px;color:var(--text)}
+.payroll-modal-ot-actions{margin-top:10px;align-items:end}
+.payroll-modal-note{grid-column:1 / -1}
+@media(max-width:720px){
+ .payroll-modal-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 .payroll-emp-edit{
   border:1px solid var(--border);border-radius:12px;padding:0;margin:0 0 12px;background:var(--bg-app);
   min-width:0;box-sizing:border-box;
@@ -982,6 +1034,36 @@ tr.ot-row td{background:rgba(245,165,36,.06)}
 .photo-thumbs{display:flex;flex-wrap:wrap;gap:6px}
 .photo-thumbs img{width:56px;height:42px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
 .employee-delete{margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.employee-dir-row-compact{
+  justify-content:space-between;
+}
+.employee-dir-row-compact .employee-dir-main{
+  flex:1 1 auto;min-width:0;
+  flex-direction:row;align-items:baseline;gap:10px;flex-wrap:nowrap;
+}
+.employee-dir-row-compact .employee-dir-main strong{
+  flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.employee-dir-row-compact .employee-dir-main small{
+  flex:0 0 auto;opacity:.85;white-space:nowrap;
+}
+.employee-dir-row-compact .badge{margin-left:auto;flex:0 0 auto}
+.employee-modal-footer{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:18px;padding-top:16px;border-top:1px solid var(--border);
+}
+.employee-modal-footer-left,
+.employee-modal-footer-right{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+}
+.employee-modal-footer button,
+.employee-modal-footer .small-button,
+.employee-modal-footer .danger,
+.employee-modal-footer .secondary{
+  min-height:40px;height:40px;box-sizing:border-box;margin:0;
+  padding:8px 14px;font-size:13px;
+}
+.employee-modal-footer form{margin:0;display:inline-flex;align-items:center}
 .audit-json{max-width:380px;max-height:260px;overflow:auto;font-size:10px;background:var(--bg-app);padding:12px;border-radius:8px;border:1px solid var(--border);color:var(--text-secondary)}
 .report{background:var(--surface);padding:30px}
 .report-toolbar{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
