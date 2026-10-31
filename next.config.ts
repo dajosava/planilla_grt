@@ -1,14 +1,22 @@
-import type { NextConfig } from "next";
-const config: NextConfig = {
- poweredByHeader: false,
+import type {NextConfig} from "next";
+import {withSerwist} from "@serwist/turbopack";
+
+const nextConfig:NextConfig={
+ poweredByHeader:false,
  experimental:{
   serverActions:{bodySizeLimit:"6mb"},
  },
- async headers(){return [{source:"/:path*",headers:[
-  {key:"X-Content-Type-Options",value:"nosniff"},
-  {key:"Referrer-Policy",value:"same-origin"},
-  {key:"X-Frame-Options",value:"DENY"},
-  {key:"Permissions-Policy",value:"camera=(self), microphone=(), geolocation=()"},
- ]}]},
+ async headers(){
+  return [{
+   source:"/:path*",
+   headers:[
+    {key:"X-Content-Type-Options",value:"nosniff"},
+    {key:"Referrer-Policy",value:"same-origin"},
+    {key:"X-Frame-Options",value:"DENY"},
+    {key:"Permissions-Policy",value:"camera=(self), microphone=(), geolocation=()"},
+   ],
+  }];
+ },
 };
-export default config;
+
+export default withSerwist(nextConfig);
