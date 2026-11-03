@@ -1064,6 +1064,15 @@ tr.ot-row td{background:rgba(245,165,36,.06)}
   padding:8px 14px;font-size:13px;
 }
 .employee-modal-footer form{margin:0;display:inline-flex;align-items:center}
+.reminder-modal-actions{
+  display:flex;flex-direction:column;gap:10px;flex:1 1 240px;min-width:0;
+}
+.reminder-modal-actions .form-grid{
+  display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;
+  margin:0;padding:0;width:100%;
+}
+.reminder-modal-actions .form-grid > label{margin:0;min-width:0}
+.reminder-modal-actions .form-footer{margin:0;grid-column:1 / -1}
 .audit-json{max-width:380px;max-height:260px;overflow:auto;font-size:10px;background:var(--bg-app);padding:12px;border-radius:8px;border:1px solid var(--border);color:var(--text-secondary)}
 .report{background:var(--surface);padding:30px}
 .report-toolbar{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}

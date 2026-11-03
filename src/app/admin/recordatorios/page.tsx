@@ -3,35 +3,12 @@ import {AlarmClock,BellRing,CalendarClock,CheckCircle2,FileWarning} from "lucide
 import {requireRole} from "@/lib/auth";
 import {Heading,Panel,CollapsiblePanel,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
-import {Badge} from "@/components/ui/badge";
 import {KpiCard} from "@/components/ui/kpi-card";
+import {RemindersDirectory,type ReminderListItem} from "@/components/reminders-directory";
 import {COMPANIES} from "@/lib/companies";
-import {dateOnly,todayCR} from "@/lib/format";
-import {
- REMINDER_CATEGORIES,
- categoryLabel,
- daysUntilDue,
- reminderUrgency,
- urgencyLabel,
- urgencyTone,
-} from "@/lib/reminders";
-import {ReminderDocs,type ReminderDocMeta} from "@/components/reminder-docs";
-import {saveReminder,completeReminder,cancelReminder} from "./actions";
-
-type Reminder={
- id:string;
- title:string;
- description:string;
- category:string;
- company:string|null;
- due_on:string;
- alert_days:number;
- reference_code:string;
- status:string;
- completed_at:string|null;
- completed_note:string;
- business_reminder_documents?:ReminderDocMeta[]|null;
-};
+import {todayCR} from "@/lib/format";
+import {REMINDER_CATEGORIES,reminderUrgency} from "@/lib/reminders";
+import {saveReminder} from "./actions";
 
 export default async function Page({searchParams}:{searchParams:Promise<{vista?:string}>}){
  const {client}=await requireRole("admin");
@@ -44,14 +21,26 @@ export default async function Page({searchParams}:{searchParams:Promise<{vista?:
   .order("due_on",{ascending:true});
  if(error)throw new Error("No se pudieron cargar los recordatorios. Aplicá las migraciones 202610190004 y 202610190005.");
 
- const all=(data??[]) as Reminder[];
+ const all=(data??[]).map((r):ReminderListItem=>({
+  id:r.id,
+  title:r.title,
+  description:r.description??"",
+  category:r.category,
+  company:r.company??null,
+  due_on:r.due_on,
+  alert_days:Number(r.alert_days),
+  reference_code:r.reference_code??"",
+  status:r.status,
+  completed_at:r.completed_at??null,
+  completed_note:r.completed_note??"",
+  business_reminder_documents:r.business_reminder_documents??[],
+ }));
  const open=all.filter(r=>r.status==="open");
  const closed=all.filter(r=>r.status!=="open");
 
  const overdue=open.filter(r=>reminderUrgency(r)==="overdue");
  const urgent=open.filter(r=>reminderUrgency(r)==="urgent");
  const soon=open.filter(r=>reminderUrgency(r)==="soon");
- const ok=open.filter(r=>reminderUrgency(r)==="ok");
 
  const list=
   vista==="vencidos"?overdue:
@@ -97,70 +86,10 @@ export default async function Page({searchParams}:{searchParams:Promise<{vista?:
     <Link className={vista==="atendidos"?"active":""} href="/admin/recordatorios?vista=atendidos">Atendidos ({closed.length})</Link>
    </nav>
 
-   {!list.length?<Empty text={vista==="atendidos"?"Todavía no hay trámites cerrados.":"No hay recordatorios en esta vista."}/>:(
-    <div className="directory-scroll" style={{maxHeight:"min(520px,60vh)"}}>
-     {list.map(r=>{
-      const urgency=reminderUrgency(r);
-      const days=daysUntilDue(r.due_on);
-      const daysText=r.status!=="open"?null:
-       days<0?`Venció hace ${Math.abs(days)} día(s)`:
-       days===0?"Vence hoy":
-       `Faltan ${days} día(s)`;
-      return (
-       <details key={r.id} className="employee-dir-row">
-        <summary>
-         <span className="employee-dir-main">
-          <strong>{r.title}</strong>
-          <small>{categoryLabel(r.category)}{r.company?` · ${r.company}`:""}{r.reference_code?` · ${r.reference_code}`:""}{(r.business_reminder_documents?.length??0)>0?` · ${r.business_reminder_documents!.length} doc(s)`:""}</small>
-         </span>
-         <span className="employee-dir-meta muted small">{dateOnly(r.due_on)}{daysText?` · ${daysText}`:""}</span>
-         <Badge tone={urgencyTone(urgency)}>{urgencyLabel(urgency)}</Badge>
-        </summary>
-        <div className="employee-dir-body">
-         {r.description?<p className="muted small pre-wrap">{r.description}</p>:null}
-         <ReminderDocs
-          reminderId={r.id}
-          docs={r.business_reminder_documents??[]}
-          canUpload={r.status==="open"}
-         />
-         {r.status==="open"?(
-          <>
-           <ActionForm action={saveReminder} submit="Guardar cambios">
-            <input type="hidden" name="id" value={r.id}/>
-            <label>Título<input name="title" defaultValue={r.title} required minLength={3} maxLength={160}/></label>
-            <label>Categoría<select name="category" defaultValue={r.category}>{REMINDER_CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
-            <label>Sociedad<select name="company" defaultValue={r.company??""}>
-             <option value="">Todas / general</option>
-             {COMPANIES.map(c=><option key={c}>{c}</option>)}
-            </select></label>
-            <label>Fecha límite<input name="due_on" type="date" defaultValue={r.due_on} required/></label>
-            <label>Alarma temprana (días)<input name="alert_days" type="number" min={1} max={365} defaultValue={r.alert_days} required/></label>
-            <label>Referencia<input name="reference_code" defaultValue={r.reference_code} maxLength={80}/></label>
-            <label>Notas<textarea name="description" rows={3} maxLength={2000} defaultValue={r.description}/></label>
-           </ActionForm>
-           <div className="row-actions" style={{marginTop:12}}>
-            <ActionForm action={completeReminder} submit="Marcar atendido">
-             <input type="hidden" name="id" value={r.id}/>
-             <label>Nota de cierre<input name="note" maxLength={1000} placeholder="Opcional"/></label>
-            </ActionForm>
-            <ActionForm action={cancelReminder} submit="Cancelar">
-             <input type="hidden" name="id" value={r.id}/>
-             <label>Motivo<input name="note" maxLength={1000} placeholder="Opcional"/></label>
-            </ActionForm>
-           </div>
-          </>
-         ):(
-          <p className="muted small">
-           {r.status==="done"?"Atendido":"Cancelado"}
-           {r.completed_at?` · ${dateOnly(r.completed_at.slice(0,10))}`:""}
-           {r.completed_note?` · ${r.completed_note}`:""}
-          </p>
-         )}
-        </div>
-       </details>
-      );
-     })}
-    </div>
+   {!list.length?(
+    <Empty text={vista==="atendidos"?"Todavía no hay trámites cerrados.":"No hay recordatorios en esta vista."}/>
+   ):(
+    <RemindersDirectory reminders={list}/>
    )}
   </Panel>
  </>;
