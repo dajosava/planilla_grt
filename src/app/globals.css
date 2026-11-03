@@ -630,6 +630,8 @@ tr:last-child td{border-bottom:0}
 .kiosk-form{margin:35px 0;background:var(--surface);padding:30px;border:1px solid var(--border);border-radius:16px}
 .kiosk-form label{text-align:left;font-size:13px;font-weight:600;display:flex;flex-direction:column;gap:10px;color:var(--text-secondary)}
 .kiosk-form input{font-size:23px;padding:18px}
+/* PIN enmascarado sin type=password (así iOS/Android muestran teclado numérico) */
+.pin-masked{-webkit-text-security:disc;text-security:disc}
 .punch-options{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:25px 0}
 .punch-options button{
   background:var(--surface-2);color:#FFFFFF;border:2px solid transparent;min-height:140px;

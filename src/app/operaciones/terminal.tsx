@@ -35,7 +35,7 @@ export function OpsTerminal({needsLogin,tasks,employeeName}:Props){
 
  if(needsLogin){
   return <main className="kiosk"><div className="kiosk-body"><p className="eyebrow">OPERACIONES</p><h1>Identifícate</h1><p className="muted">Usa tu código de empleado y PIN de 4 dígitos para ver las tareas del turno.</p>
-   <ActionForm action={startOpsSession} submit="Entrar a operaciones"><label>Código<input name="code" required maxLength={12} autoComplete="off"/></label><label>PIN<input name="pin" type="password" inputMode="numeric" minLength={4} maxLength={4} required autoComplete="off"/></label></ActionForm>
+   <ActionForm action={startOpsSession} submit="Entrar a operaciones"><label>Código<input name="code" type="tel" inputMode="numeric" pattern="[0-9]*" enterKeyHint="next" required maxLength={12} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} onInput={e=>{const t=e.currentTarget;t.value=t.value.replace(/\D/g,"")}}/></label><label>PIN<input name="pin" type="tel" inputMode="numeric" pattern="[0-9]*" enterKeyHint="done" className="pin-masked" minLength={4} maxLength={4} required autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} onInput={e=>{const t=e.currentTarget;t.value=t.value.replace(/\D/g,"")}}/></label></ActionForm>
    <p className="small muted"><a href="/marcacion">← Volver a marcación</a></p></div></main>;
  }
 
