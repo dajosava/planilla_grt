@@ -945,6 +945,12 @@ tr.ot-row td{background:rgba(245,165,36,.06)}
 }
 .payroll-period-banner strong{font-size:15px}
 .payroll-close-total{font-size:16px;margin:12px 0 16px}
+.payslip-email-box{
+  margin:0 0 16px;padding:14px 16px;border:1px solid var(--border);border-radius:12px;
+  background:var(--bg-app);min-width:0;
+}
+.payslip-email-box .alert{margin:8px 0 0}
+.payslip-email-box code{font-size:12px}
 .payroll-dir-row{
   width:100%;text-align:left;cursor:pointer;
   display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;

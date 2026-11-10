@@ -7,8 +7,10 @@ import {KpiCard} from "@/components/ui/kpi-card";
 import {Badge} from "@/components/ui/badge";
 import {PayrollFlow,payrollActiveIndex} from "@/components/payroll-flow";
 import {PayrollItemsDirectory,type PayrollListItem} from "@/components/payroll-items-directory";
+import {SendPayslips} from "@/components/send-payslips";
 import {createPayroll,closePayroll,deletePayroll} from "../actions";
 import {DeletePayroll} from "@/components/delete-payroll";
+import {mailConfigured} from "@/lib/mail/emailjs";
 import {COMPANIES,parseCompany} from "@/lib/companies";
 import {money,labels,todayCR} from "@/lib/format";
 import {labelFortnight} from "@/lib/payroll";
@@ -194,7 +196,18 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
     </CollapsiblePanel>
    ):(
     <Panel title="3 · Pago y comprobantes">
-     <p className="muted">Quincena de {company} cerrada. Los comprobantes de pago (uno por empleado) están listos para imprimir o guardar PDF. El envío por correo se conectará en el siguiente paso.</p>
+     <p className="muted">Quincena de {company} cerrada. Podés imprimir comprobantes, descargar CSV o enviar cada colilla al correo del empleado (vía EmailJS / Gmail).</p>
+     <SendPayslips
+      runId={selected.id}
+      mailReady={mailConfigured()}
+      stats={{
+       total:list.length,
+       sent:list.filter(i=>i.email_status==="sent").length,
+       pending:list.filter(i=>!i.email_status||i.email_status==="pending").length,
+       failed:list.filter(i=>i.email_status==="failed").length,
+       skipped:list.filter(i=>i.email_status==="skipped").length,
+      }}
+     />
      <div className="button-row">
       <a className="button" href={"/admin/planilla/"+selected.id+"/reporte"}>Comprobantes / PDF</a>
       <a className="button secondary" href={"/api/reportes/"+selected.id}>CSV para Excel / banco</a>

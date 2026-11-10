@@ -81,6 +81,12 @@ npm test
 npm run build
 ```
 
+## Arquitectura
+
+Guía de capas, flujos y diagramas Mermaid (cómo funciona y cómo escalar sin spaghetti):
+
+→ [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
+
 ## Estructura
 
 ```text
@@ -91,6 +97,7 @@ src/app/admin/incidentes/    Inbox de incidentes
 src/app/admin/               Planilla, empleados, asistencia…
 supabase/migrations/         Esquema y RPCs (incl. operations MVP)
 tests/                       PGlite + unitarias
+docs/                        Arquitectura y notas
 ```
 
 ## Antes de producción

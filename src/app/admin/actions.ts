@@ -54,7 +54,118 @@ export async function updatePayroll(_:ActionState,form:FormData):Promise<ActionS
  });
  dbError(error);revalidatePath("/admin/planilla");return {success:"Conceptos guardados (CCSS recalculada sobre el adelanto)."}
 }catch(e){return failure(e)}}
-export async function closePayroll(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const id=z.uuid().parse(form.get("id"));const {error}=await client.rpc("close_payroll",{p_id:id});dbError(error);revalidatePath("/admin/planilla");return {success:"Planilla cerrada. Ya puedes descargar el reporte."}}catch(e){return failure(e)}}
+export async function closePayroll(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const id=z.uuid().parse(form.get("id"));const {error}=await client.rpc("close_payroll",{p_id:id});dbError(error);revalidatePath("/admin/planilla");return {success:"Planilla cerrada. Ya puedes descargar el reporte o enviar las colillas."}}catch(e){return failure(e)}}
+
+export async function sendPayrollPayslips(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const {mailConfigured,sendWithEmailJs}=await import("@/lib/mail/emailjs");
+  const {buildPayslipEmailHtml}=await import("@/lib/mail/payslip-html");
+  const {formatSlipPeriod,linesFromPayrollItem}=await import("@/components/comprobante-pago");
+
+  if(!mailConfigured()){
+   return {error:"Falta configurar EmailJS (SERVICE_ID, TEMPLATE_ID, PUBLIC_KEY y PRIVATE_KEY)."};
+  }
+
+  const id=z.uuid().parse(form.get("id"));
+  const mode=z.enum(["pending","all"]).parse(form.get("mode")||"pending");
+
+  const {data:run,error:runErr}=await client.from("payroll_runs").select("*").eq("id",id).single();
+  dbError(runErr);
+  if(!run||run.status!=="closed"){
+   return {error:"Solo se pueden enviar colillas de una quincena cerrada."};
+  }
+
+  const {data:items,error:itemErr}=await client
+   .from("payroll_items")
+   .select("*,employees:employee_id(position,department,email)")
+   .eq("run_id",id)
+   .order("employee_name");
+  dbError(itemErr);
+
+  const list=items??[];
+  const emailOk=(v:string|null|undefined)=>!!v&&/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(v.trim());
+
+  const targets=list.filter(i=>{
+   if(mode==="all")return true;
+   return i.email_status!=="sent"&&i.email_status!=="skipped";
+  });
+
+  if(!targets.length){
+   return {success:"No hay colillas pendientes de enviar."};
+  }
+
+  const company=String(run.company??"Gasolinera");
+  const companyTitle=`GASOLINERA RÍO TEMPISQUE · ${company.toUpperCase()}`;
+  const periodo=formatSlipPeriod(run.period_start,run.period_end);
+
+  let sent=0,failed=0,skipped=0;
+
+  for(const item of targets){
+   const emp=Array.isArray(item.employees)?item.employees[0]:item.employees;
+   const to=(String(item.employee_email||"").trim()||String((emp as {email?:string}|null)?.email||"").trim()).toLowerCase();
+
+   if(!emailOk(to)){
+    const {error}=await client.rpc("mark_payroll_item_email",{
+     p_id:item.id,p_status:"skipped",p_error:"Sin correo válido en el empleado",
+    });
+    dbError(error);
+    skipped++;
+    continue;
+   }
+
+   const position=String((emp as {position?:string}|null)?.position??"");
+   const department=String((emp as {department?:string}|null)?.department??company);
+   const {income,deductions}=linesFromPayrollItem(item);
+   const mail=buildPayslipEmailHtml({
+    companyName:companyTitle,
+    employeeName:item.employee_name,
+    employeeCode:item.employee_code,
+    department,
+    position,
+    section:company,
+    periodLabel:periodo,
+    income,
+    deductions,
+    note:item.note,
+   });
+
+   try{
+    await sendWithEmailJs({
+     toEmail:to,
+     toName:item.employee_name,
+     subject:mail.subject,
+     period:periodo,
+     netPay:mail.netPay,
+     html:mail.html,
+     text:mail.text,
+    });
+    const {error}=await client.rpc("mark_payroll_item_email",{
+     p_id:item.id,p_status:"sent",p_error:"",
+    });
+    dbError(error);
+    sent++;
+   }catch(e){
+    const msg=e instanceof Error?e.message:"No se pudo enviar";
+    const {error}=await client.rpc("mark_payroll_item_email",{
+     p_id:item.id,p_status:"failed",p_error:msg.slice(0,500),
+    });
+    dbError(error);
+    failed++;
+   }
+  }
+
+  revalidatePath("/admin/planilla");
+  const parts=[
+   sent?`${sent} enviada(s)`:null,
+   failed?`${failed} fallida(s)`:null,
+   skipped?`${skipped} sin correo`:null,
+  ].filter(Boolean);
+  if(failed&&!sent)return {error:`No se pudo enviar. ${parts.join(" · ")}`};
+  return {success:`Colillas procesadas: ${parts.join(" · ")||"sin cambios"}.`};
+ }catch(e){return failure(e)}
+}
+
 export async function deletePayroll(_:ActionState,form:FormData):Promise<ActionState>{
  const {client}=await requireRole("admin");
  try{
