@@ -1,0 +1,4 @@
+# EMAILJS_FROM_NAME no es un secreto: es un nombre visible ("Gasolinera Río Tempisque").
+# Netlify lo escanea y falla el build porque ese texto está en README, layout, etc.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "EMAILJS_FROM_NAME"
