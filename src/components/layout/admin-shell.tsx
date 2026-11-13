@@ -79,7 +79,14 @@ export function AdminShell({
   <div className={`sidebar-backdrop${open?" open":""}`} onClick={()=>setOpen(false)} aria-hidden={!open}/>
   <aside className={`sidebar${open?" open":""}`} aria-label="Navegación principal">
    <Link href="/admin" className="brand" onClick={()=>setOpen(false)}>
-    <div className="brand-mark">GRT</div>
+    <img
+     src="/logo2.png"
+     alt="Gasolinera Río Tempisque"
+     className="brand-logo"
+     width={40}
+     height={40}
+     decoding="async"
+    />
     <div><strong>Gasolinera Río Tempisque</strong><span>Gestión de Operaciones y personal</span></div>
    </Link>
    {groups.map(g=><div className="nav-group" key={g.label}>

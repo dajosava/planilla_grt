@@ -113,6 +113,11 @@ h3{font-size:1rem;margin:0;color:var(--text)}
   width:40px;height:40px;border-radius:12px;background:var(--green-600);color:#FFFFFF;
   display:grid;place-items:center;font-size:13px;font-weight:800;flex:0 0 auto;
 }
+.brand-logo{
+  width:40px;height:40px;object-fit:contain;flex:0 0 auto;
+  border-radius:10px;background:#FFFFFF;padding:4px;box-sizing:border-box;
+  display:block;
+}
 .brand{display:flex;align-items:center;gap:12px;color:var(--text);min-width:0}
 .brand strong{font-size:14px;display:block;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
 .brand span{display:block;color:var(--text-secondary);font-size:11px}
