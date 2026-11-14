@@ -55,6 +55,24 @@ export async function saveTemplate(_:ActionState,form:FormData):Promise<ActionSt
  }catch(e){return failure(e)}
 }
 
+export async function deleteTemplate(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const id=z.uuid().parse(form.get("id"));
+  const confirmTitle=z.string().trim().min(1).max(120).parse(form.get("confirm_title"));
+  const {error}=await client.rpc("ops_delete_template",{
+   p_id:id,
+   p_confirm_title:confirmTitle,
+  });
+  dbError(error);
+  revalidatePath("/admin/operaciones");
+  revalidatePath("/admin/operaciones/plantillas");
+  revalidatePath("/admin/operaciones/tareas");
+  revalidatePath("/operaciones");
+  return {success:"Plantilla eliminada."};
+ }catch(e){return failure(e)}
+}
+
 export async function createAdHocTask(_:ActionState,form:FormData):Promise<ActionState>{
  const {client}=await requireRole("admin");
  try{

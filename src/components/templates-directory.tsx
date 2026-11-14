@@ -1,11 +1,12 @@
 "use client";
 import {useActionState,useEffect,useState} from "react";
-import {X} from "lucide-react";
+import {createPortal} from "react-dom";
+import {Trash2,TriangleAlert,X} from "lucide-react";
 import type {ActionState} from "@/components/action-form";
 import {ChecklistEditor,type ChecklistDraftItem} from "@/components/checklist-editor";
 import {Badge} from "@/components/ui/badge";
 import {OPS_AREAS} from "@/lib/ops-areas";
-import {saveTemplate} from "@/app/admin/ops-actions";
+import {deleteTemplate,saveTemplate} from "@/app/admin/ops-actions";
 
 export type TemplateListItem={
  id:string;
@@ -35,6 +36,91 @@ function AssigneeSelect({employees,defaultValue}:{employees:Emp[];defaultValue?:
    </select>
   </label>
  );
+}
+
+function DeleteTemplateButton({
+ id,title,disabled,onDeleted,
+}:{
+ id:string;
+ title:string;
+ disabled?:boolean;
+ onDeleted:()=>void;
+}){
+ const [state,formAction,pending]=useActionState(deleteTemplate,{} as ActionState);
+ const [open,setOpen]=useState(false);
+ const [typed,setTyped]=useState("");
+ const close=()=>{if(!pending){setOpen(false);setTyped("")}};
+
+ useEffect(()=>{
+  if(!open)return;
+  const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!pending){setOpen(false);setTyped("")}};
+  window.addEventListener("keydown",onKey);
+  return ()=>window.removeEventListener("keydown",onKey);
+ },[open,pending]);
+
+ useEffect(()=>{
+  if(state.success){
+   setOpen(false);
+   setTyped("");
+   onDeleted();
+  }
+ },[state.success,onDeleted]);
+
+ const dialog=open?createPortal(
+  <div className="modal-backdrop" onClick={close} style={{zIndex:60}}>
+   <div
+    className="modal"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby={`del-tpl-${id}`}
+    onClick={e=>e.stopPropagation()}
+   >
+    <TriangleAlert size={48} className="modal-danger-icon"/>
+    <h2 id={`del-tpl-${id}`}>Eliminar plantilla</h2>
+    <p>Se borrará <strong>{title}</strong> y sus ítems de checklist.</p>
+    <ul>
+     <li>Dejará de generar tareas nuevas</li>
+     <li>Se eliminan tareas abiertas o rechazadas de esta plantilla</li>
+     <li>El historial aprobado/completado se conserva</li>
+    </ul>
+    <p className="muted small">Esta acción no se puede deshacer.</p>
+    <form action={formAction}>
+     <input type="hidden" name="id" value={id}/>
+     <label>
+      Para confirmar, escribí el título <strong>{title}</strong>
+      <input
+       name="confirm_title"
+       value={typed}
+       onChange={e=>setTyped(e.target.value)}
+       autoComplete="off"
+       autoFocus
+       disabled={pending}
+      />
+     </label>
+     {state.error&&<p role="alert" className="alert error">{state.error}</p>}
+     <div className="modal-actions">
+      <button type="button" className="secondary" onClick={close} disabled={pending}>Cancelar</button>
+      <button className="danger-solid" disabled={pending||typed.trim()!==title}>
+       <Trash2 size={15}/>{pending?"Eliminando…":"Eliminar plantilla"}
+      </button>
+     </div>
+    </form>
+   </div>
+  </div>,
+  document.body
+ ):null;
+
+ return <>
+  <button
+   type="button"
+   className="danger small-button"
+   disabled={disabled||pending}
+   onClick={()=>setOpen(true)}
+  >
+   <Trash2 size={13}/>Eliminar plantilla
+  </button>
+  {dialog}
+ </>;
 }
 
 function EditTemplateModal({
@@ -116,9 +202,15 @@ function EditTemplateModal({
        key={template.id}
        initial={template.items.length?template.items:[{label:"",requires_photo:false,for_bitacora:false}]}
       />
-      <div className="form-footer">
+      <div className="form-footer template-edit-footer">
        {state.error&&<p role="alert" className="alert error">{state.error}</p>}
        {state.success&&<p role="status" className="alert success">{state.success}</p>}
+       <DeleteTemplateButton
+        id={template.id}
+        title={template.title}
+        disabled={pending}
+        onDeleted={onClose}
+       />
        <button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancelar</button>
        <button disabled={pending}>{pending?"Guardando…":"Guardar cambios"}</button>
       </div>

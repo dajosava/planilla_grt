@@ -812,6 +812,7 @@ body.kiosk-locked{
 .template-active-check-header:focus-within{outline:none;box-shadow:none}
 .modal-form-grid{margin-top:0;align-items:start}
 .modal-form-grid .form-footer{justify-content:flex-end}
+.template-edit-footer .danger.small-button{margin-right:auto}
 .template-edit-form.contents{display:contents}
 .template-edit-form > label,
 .modal-form-grid.template-edit-form > label{
