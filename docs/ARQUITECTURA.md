@@ -216,6 +216,7 @@ flowchart LR
 - Eventos = evidencia original.
 - Sesiones = vista derivada (entrada / descansos / salida).
 - Online: hora de servidor. Offline: cola IndexedDB + `p_occurred_at` (ventana acotada). PIN con bcrypt; idempotencia por `requestId`.
+- Admin puede **ajustar** (`correct_session`) o **borrar** jornada / solo salida (`delete_attendance_session`, con motivo y `audit_log`; bloqueado si planilla cerrada).
 - Detalle PWA/cola: `docs/pwa.md` §8.
 
 ### 6.2 Operaciones de estación

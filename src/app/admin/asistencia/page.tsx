@@ -5,7 +5,8 @@ import {ActionForm} from "@/components/action-form";
 import {AttendanceOtAlert,type AttendanceOtItem} from "@/components/attendance-ot-alert";
 import {AckAttendanceAlert} from "@/components/ack-attendance-alert";
 import {Badge} from "@/components/ui/badge";
-import {correctSession} from "../actions";
+import {correctSession,deleteAttendanceSession} from "../actions";
+import {DeleteAttendance} from "@/components/delete-attendance";
 import {dateTime,todayCR,labels} from "@/lib/format";
 
 const MAX_OPEN_HOURS=12;
@@ -74,7 +75,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  return <>
   <Heading
    title="Asistencia"
-   description="Revisa jornadas y registra ajustes sin borrar las marcaciones originales. Las horas &gt;8/día se proponen como extras para planilla."
+   description="Revisa jornadas, corrige horarios o borra marcas por equivocación. Las horas &gt;8/día se proponen como extras para planilla."
   />
 
   <AttendanceOtAlert items={otItems} people={otPeople} otHours={otHoursTotal}/>
@@ -147,28 +148,57 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
      {rows.map(s=>{
       const hours=s.worked_hours===null?null:Number(s.worked_hours);
       const isOt=hours!=null&&hours>8;
+      const empLabel=names.get(s.employee_id)??"Empleado";
       return (
        <tr key={s.id} className={isOt?"ot-row":undefined}>
-        <td>{names.get(s.employee_id)}</td>
+        <td>{empLabel}</td>
         <td>
          <div className="photo-thumbs">
           {(bySession.get(s.id)??[]).map(p=>p.photo==="captured"?(
-           <a key={p.id} href={`/api/fotos/${p.id}`} target="_blank" rel="noopener" title={`${labels[p.kind]} · ${dateTime(p.occurred_at)}`}>
+           <a key={p.id} className="photo-thumb" href={`/api/fotos/${p.id}`} target="_blank" rel="noopener" title={`${labels[p.kind]} · ${dateTime(p.occurred_at)}`}>
             <img src={`/api/fotos/${p.id}`} alt={`Foto de ${labels[p.kind]}`} loading="lazy"/>
-            {labels[p.kind]}
+            <span className="photo-thumb-label">{labels[p.kind]}</span>
            </a>
           ):(
-           <span key={p.id} title={`${labels[p.kind]} · ${dateTime(p.occurred_at)}`}>
+           <span key={p.id} className="photo-thumb photo-thumb-empty" title={`${labels[p.kind]} · ${dateTime(p.occurred_at)}`}>
             <span className={`no-photo${p.photo==="missing"?"":" expired"}`}>
              {p.photo==="missing"?"Sin foto":p.photo==="expired"?"Vencida":"—"}
             </span>
-            {labels[p.kind]}
+            <span className="photo-thumb-label">{labels[p.kind]}</span>
            </span>
           ))}
          </div>
         </td>
-        <td>{dateTime(s.started_at)}</td>
-        <td>{s.ended_at?dateTime(s.ended_at):<span className={missingExit(s)?"text-danger":undefined}>Sin salida</span>}</td>
+        <td>
+         <div className="punch-cell">
+          <span>{dateTime(s.started_at)}</span>
+          <DeleteAttendance
+           sessionId={s.id}
+           employeeLabel={empLabel}
+           timeLabel={dateTime(s.started_at)}
+           mode="entry"
+           action={deleteAttendanceSession}
+          />
+         </div>
+        </td>
+        <td>
+         <div className="punch-cell">
+          {s.ended_at?(
+           <>
+            <span>{dateTime(s.ended_at)}</span>
+            <DeleteAttendance
+             sessionId={s.id}
+             employeeLabel={empLabel}
+             timeLabel={dateTime(s.ended_at)}
+             mode="exit"
+             action={deleteAttendanceSession}
+            />
+           </>
+          ):(
+           <span className={missingExit(s)?"text-danger":undefined}>Sin salida</span>
+          )}
+         </div>
+        </td>
         <td>
          {hours===null?"—":hours.toFixed(2)}
          {isOt&&<small className="text-danger"> · +{(hours-8).toFixed(2)} h extra</small>}
