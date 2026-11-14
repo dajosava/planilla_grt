@@ -18,4 +18,12 @@ export const employeeSchema=z.object({
  hours_month:z.coerce.number().min(1).max(400).default(243.36),
  exempt_from_ccss:z.coerce.boolean().default(false),
 });
-export const punchSchema=z.object({code:z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{1,12}$/),pin:z.string().regex(/^\d{4}$/),kind:z.enum(["entry","exit","break_start","break_end"]),requestId:z.uuid(),photo:z.string().max(270000).regex(/^[A-Za-z0-9+/]+=*$/).nullish().catch(null)});
+export const punchSchema=z.object({
+ code:z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{1,12}$/),
+ pin:z.string().regex(/^\d{4}$/),
+ kind:z.enum(["entry","exit","break_start","break_end"]),
+ requestId:z.uuid(),
+ photo:z.string().max(270000).regex(/^[A-Za-z0-9+/]+=*$/).nullish().catch(null),
+ /** ISO UTC de la tablet; solo cola offline. Online: omitir (hora servidor). */
+ occurredAt:z.iso.datetime().nullish().catch(null),
+});

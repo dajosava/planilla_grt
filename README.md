@@ -87,6 +87,12 @@ Guía de capas, flujos y diagramas Mermaid (cómo funciona y cómo escalar sin s
 
 → [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 
+## PWA
+
+Cómo funciona la app instalable, modo kiosco en tablet, service worker y qué datos recolecta:
+
+→ [`docs/pwa.md`](docs/pwa.md)
+
 ## Estructura
 
 ```text

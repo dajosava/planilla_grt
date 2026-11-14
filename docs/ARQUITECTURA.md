@@ -203,6 +203,8 @@ Helpers de UI: `ActionForm` (`useActionState`) para feedback de error/éxito sin
 ```mermaid
 flowchart LR
   Kiosk["/marcacion<br/>código + PIN + foto"] --> Punch["punch action"]
+  Kiosk --> IDB["IndexedDB cola offline"]
+  IDB -->|"online + p_occurred_at"| Punch
   Punch --> RPC["register_punch_with_photo"]
   RPC --> Ev["attendance_events"]
   RPC --> Ses["attendance_sessions"]
@@ -213,7 +215,8 @@ flowchart LR
 
 - Eventos = evidencia original.
 - Sesiones = vista derivada (entrada / descansos / salida).
-- Hora de servidor; PIN con bcrypt; idempotencia por `requestId`.
+- Online: hora de servidor. Offline: cola IndexedDB + `p_occurred_at` (ventana acotada). PIN con bcrypt; idempotencia por `requestId`.
+- Detalle PWA/cola: `docs/pwa.md` §8.
 
 ### 6.2 Operaciones de estación
 
@@ -393,7 +396,7 @@ flowchart TB
 - Escribir a tablas sensibles con el client sin RPC cuando existe procedimiento.
 - Duplicar fórmulas de CCSS/neto en tres archivos distintos.
 - Un único CSS/archivo de actions que absorba todos los features nuevos sin cortar.
-- Offline de marcación “ingenuo” (hora del dispositivo sin conciliación): requiere diseño aparte.
+- Aceptar `p_occurred_at` sin ventana ni rol kiosk (abuso de reloj).
 
 ---
 
@@ -406,6 +409,7 @@ flowchart TB
 5. Kiosk Auth ≠ sesión de empleado (código+PIN).
 6. PWA (Serwist) para instalación; SW desactivado en dev.
 7. Colillas: envío post-cierre vía EmailJS (Gmail del cliente).
+8. Marcación offline: IndexedDB en tablet kiosco + RPC con `p_occurred_at` limitado.
 
 ---
 
