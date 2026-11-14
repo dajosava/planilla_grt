@@ -453,6 +453,10 @@ tr:last-child td{border-bottom:0}
 .row-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
 .row-actions .form-grid{min-width:160px;gap:8px}
 .row-actions button{min-height:36px;padding:8px 12px;font-size:12px}
+.row-actions .punch-delete-btn,
+.task-row-actions .punch-delete-btn{
+  min-height:0;padding:2px 5px;font-size:10px;
+}
 
 /* Badges */
 .badge{

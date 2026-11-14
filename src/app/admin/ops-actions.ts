@@ -141,6 +141,20 @@ export async function reviewTask(_:ActionState,form:FormData):Promise<ActionStat
  }catch(e){return failure(e)}
 }
 
+export async function deleteTask(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const id=z.uuid().parse(form.get("id"));
+  const reason=z.string().trim().min(5).max(500).parse(form.get("reason"));
+  const {error}=await client.rpc("ops_delete_task",{p_id:id,p_reason:reason});
+  dbError(error);
+  revalidatePath("/admin/operaciones");
+  revalidatePath("/admin/operaciones/tareas");
+  revalidatePath("/operaciones");
+  return {success:"Tarea eliminada."};
+ }catch(e){return failure(e)}
+}
+
 export async function updateIncident(_:ActionState,form:FormData):Promise<ActionState>{
  const {client}=await requireRole("admin");
  try{

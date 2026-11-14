@@ -34,6 +34,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const to=parseDay(params.hasta,from);
  const weekStart=addDays(today,-6);
  const monthStart=`${today.slice(0,8)}01`;
+ const monthEnd=addDays(addDays(monthStart,32).slice(0,8)+"01",-1);
  const estado=typeof params.estado==="string"?params.estado:undefined;
  const area=typeof params.area==="string"?params.area:undefined;
 
@@ -86,6 +87,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
      <Link className={`chip${from===today&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:today,hasta:today})}`}>Hoy</Link>
      <Link className={`chip${from===weekStart&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:weekStart,hasta:today})}`}>Últimos 7 días</Link>
      <Link className={`chip${from===monthStart&&to===today?" active":""}`} href={`/admin/operaciones${qs({desde:monthStart,hasta:today})}`}>Mes en curso</Link>
+     <Link className={`chip${from===monthStart&&to===monthEnd?" active":""}`} href={`/admin/operaciones${qs({desde:monthStart,hasta:monthEnd})}`}>Mes completo</Link>
     </div>
    </div>
   }/>
