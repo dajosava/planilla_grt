@@ -26,6 +26,10 @@ export const ORDINARY_LIMIT_MINUTES:Record<ShiftType,number>={
  NIGHT:360,
 };
 
+/** Umbral mínimo para registrar horas extra: menos de 30 min → 0; 30+ → se registra el total. */
+export const OT_GRACE_MINUTES=30;
+export const OT_GRACE_HOURS=OT_GRACE_MINUTES/60;
+
 const CR_TZ="America/Costa_Rica";
 /** Minutos nocturnos que convierten mixta → nocturna (3 h 30 min). */
 export const NIGHT_THRESHOLD_MINUTES=210;
@@ -85,9 +89,13 @@ export function classifyShift(clockIn:string|Date,clockOut:string|Date):ShiftRes
  };
 }
 
-/** Horas extra netas respecto al límite ordinario de la clasificación. */
+/**
+ * Horas extra netas respecto al límite ordinario.
+ * Umbral OT_GRACE_HOURS (30 min): exceso < 30 min → 0;
+ * exceso ≥ 30 min → se registra el total del exceso (incluidos esos 30 min).
+ */
 export function overtimeHours(workedHours:number,shift:Pick<ShiftResult,"legalOrdinaryLimitHours">):number{
- const ot=workedHours-shift.legalOrdinaryLimitHours;
- if(ot<=0)return 0;
- return Math.round(ot*100)/100;
+ const raw=workedHours-shift.legalOrdinaryLimitHours;
+ if(raw<OT_GRACE_HOURS)return 0;
+ return Math.round(raw*100)/100;
 }

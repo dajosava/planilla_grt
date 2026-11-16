@@ -52,11 +52,15 @@ describe("classifyShift (Código de Trabajo CR)",()=>{
   expect(r.nightMinutes).toBe(120);
  });
 
- it("calcula OT sobre el límite de la jornada",()=>{
-  const night=classifyShift(d("15:00"),d("23:00"));
-  expect(overtimeHours(7,night)).toBe(1);
+ it("calcula OT con umbral de 30 min (menos de 30 → 0; 30+ → total)",()=>{
+  const night=classifyShift(d("15:00"),d("23:00")); // lim 6 h
   expect(overtimeHours(6,night)).toBe(0);
-  const day=classifyShift(d("06:00"),d("14:00"));
+  expect(overtimeHours(6.25,night)).toBe(0); // 15 min < umbral
+  expect(overtimeHours(6.5,night)).toBe(0.5); // 30 min exactos → se registra
+  expect(overtimeHours(7,night)).toBe(1); // 1 h completa
+  const day=classifyShift(d("06:00"),d("14:00")); // lim 8 h
+  expect(overtimeHours(8.25,day)).toBe(0);
   expect(overtimeHours(8.5,day)).toBe(0.5);
+  expect(overtimeHours(9,day)).toBe(1);
  });
 });

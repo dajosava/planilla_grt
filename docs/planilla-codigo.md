@@ -130,8 +130,13 @@ Si **no hay turno asignado**, se clasifica el intervalo real y se marca `needs_r
 ```text
 worked_hours     = suma de effective_sessions del día (ya restan descansos)
 ordinary_limit   = 8 | 7 | 6   según classify (turno pactado si existe)
-ot_hours         = max(0, worked_hours − ordinary_limit)   (tope práctico 16 h)
+raw_ot           = max(0, worked_hours − ordinary_limit)
+ot_grace         = 0.5 h (30 min)
+ot_hours         = raw_ot < 0.5 ? 0 : raw_ot   (tope práctico 16 h)
 ```
+
+**Menos de 30 min** de exceso → no se registra extra. **30 min o más** → se registra el **total** del exceso (incluidos esos 30 min).
+Ej.: diurna 8 h + 25 min → OT 0; diurna 8 h + 30 min → OT 0.5 h; diurna 8 h + 50 min → OT 0.83 h.
 
 Implementación:
 
@@ -147,7 +152,7 @@ Implementación:
 
 - El clasificador trabaja sobre un intervalo continuo; los descansos ya están descontados en `worked_hours` de `effective_sessions` para el **monto de OT**, pero el conteo de minutos nocturnos del tipo usa la ventana entrada–salida (sin restar break minuto a minuto).
 - No reclasificar el tipo ordinario con la cola de extras: priorizar siempre `shifts` cuando exista.
-- Migración requerida: `202611150001_shift_classification_cr.sql`.
+- Migraciones: `202611150001_shift_classification_cr.sql`, `202611160001_ot_grace_30min.sql`.
 
 ### CCSS
 
