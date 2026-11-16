@@ -32,37 +32,18 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  let eventsQuery=client.from("attendance_events").select("id,session_id,employee_id,kind,occurred_at,punch_photos(status)").gte("occurred_at",startCR(from)).lt("occurred_at",startCR(addDays(to,2))).order("occurred_at").limit(3000);
  if(employee){query=query.eq("employee_id",employee);eventsQuery=eventsQuery.eq("employee_id",employee)}
 
- const [sessions,open,emp,events,otRpc,acks,shiftsRes]=await Promise.all([
+ const [sessions,open,emp,events,otRpc,acks]=await Promise.all([
   query,
   client.from("effective_sessions").select("*").is("ended_at",null).order("started_at"),
   client.from("employees").select("id,code,full_name").order("full_name"),
   eventsQuery,
   client.rpc("list_attendance_ot_alerts",{p_from:from,p_to:to}),
   client.from("attendance_alert_acks").select("kind,ref_id").in("kind",["missing_photo","missing_exit"]),
-  client.from("shifts").select("employee_id,starts_at,ends_at")
-   .lt("starts_at",startCR(addDays(to,2)))
-   .gt("ends_at",startCR(addDays(from,-1))),
  ]);
  if(sessions.error||open.error||emp.error||events.error)throw new Error("No se pudo cargar la asistencia");
- const shiftsByEmp=new Map<string,{starts_at:string;ends_at:string}[]>();
- for(const sh of shiftsRes.data??[]){
-  const list=shiftsByEmp.get(sh.employee_id)??[];
-  list.push({starts_at:sh.starts_at,ends_at:sh.ends_at});
-  shiftsByEmp.set(sh.employee_id,list);
- }
- function sessionShift(employeeId:string,startedAt:string,endedAt:string|null):{shift:ShiftResult;scheduled:boolean}|null{
+ function sessionShift(_employeeId:string,startedAt:string,endedAt:string|null):ShiftResult|null{
   if(!endedAt)return null;
-  const assigned=(shiftsByEmp.get(employeeId)??[]).find(sh=>{
-   const a=new Date(sh.starts_at).getTime();
-   const b=new Date(sh.ends_at).getTime();
-   const s=new Date(startedAt).getTime();
-   const e=new Date(endedAt).getTime();
-   return a<e&&b>s;
-  });
-  try{
-   if(assigned)return {shift:classifyShift(assigned.starts_at,assigned.ends_at),scheduled:true};
-   return {shift:classifyShift(startedAt,endedAt),scheduled:false};
-  }catch{return null}
+  try{return classifyShift(startedAt,endedAt)}catch{return null}
  }
 
  const ackedPhoto=new Set((acks.data??[]).filter(a=>a.kind==="missing_photo").map(a=>a.ref_id));
@@ -172,7 +153,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
      {rows.map(s=>{
       const hours=s.worked_hours===null?null:Number(s.worked_hours);
       const classified=sessionShift(s.employee_id,s.started_at,s.ended_at);
-      const ot=classified&&hours!=null?overtimeHours(hours,classified.shift):0;
+      const ot=classified&&hours!=null?overtimeHours(hours,classified):0;
       const isOt=ot>0;
       const empLabel=names.get(s.employee_id)??"Empleado";
       return (
@@ -224,9 +205,9 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
         </td>
         <td>
          {classified?(
-          <span title={classified.scheduled?"Según turno asignado":"Sin turno asignado · revisión recomendada"}>
-           {classified.shift.label}
-           <small className="muted"> · lim. {classified.shift.legalOrdinaryLimitHours} h{classified.scheduled?"":" · sin turno"}</small>
+          <span title="Según marcación entrada/salida">
+           {classified.label}
+           <small className="muted"> · lim. {classified.legalOrdinaryLimitHours} h</small>
           </span>
          ):"—"}
         </td>

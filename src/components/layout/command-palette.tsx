@@ -1,7 +1,7 @@
 "use client";
 import {useMemo,useState} from "react";
 import {useRouter} from "next/navigation";
-import {ClipboardCheck,TriangleAlert,LayoutDashboard,Users,Clock3,CalendarDays,ClipboardList,Wallet,ScrollText,AlarmClock,Search} from "lucide-react";
+import {ClipboardCheck,TriangleAlert,LayoutDashboard,Users,Clock3,ClipboardList,Wallet,ScrollText,AlarmClock,Search} from "lucide-react";
 
 const routes=[
  {href:"/admin",label:"Resumen",icon:LayoutDashboard,group:"Admin"},
@@ -11,7 +11,6 @@ const routes=[
  {href:"/admin/incidentes",label:"Incidentes",icon:TriangleAlert,group:"Ops"},
  {href:"/admin/empleados",label:"Empleados",icon:Users,group:"Admin"},
  {href:"/admin/asistencia",label:"Asistencia",icon:Clock3,group:"Admin"},
- {href:"/admin/turnos",label:"Turnos",icon:CalendarDays,group:"Admin"},
  {href:"/admin/ausencias",label:"Vacaciones y ausencias",icon:ClipboardList,group:"Admin"},
  {href:"/admin/planilla",label:"Planilla",icon:Wallet,group:"Admin"},
  {href:"/admin/planilla/aguinaldo",label:"Aguinaldo",icon:Wallet,group:"Admin"},

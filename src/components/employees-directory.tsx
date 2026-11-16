@@ -66,7 +66,7 @@ function EditEmployeeModal({
        <p className="eyebrow">Editar empleado</p>
        <h2 id={`emp-edit-${employee.id}`}>{employee.full_name}</h2>
        <p className="muted small" style={{margin:"4px 0 0"}}>
-        {employee.code} · {cedula(employee.cedula)} · Ingreso {dateOnly(employee.hired_on)} · Vacaciones {employee.vacation_balance} días
+        {employee.code} · {cedula(employee.cedula)} · Ingreso {dateOnly(employee.hired_on)}
        </p>
       </div>
       <div className="modal-head-actions">
@@ -106,6 +106,16 @@ function EditEmployeeModal({
       <label>Horas ordinarias / mes
        <input name="hours_month" type="number" min="1" max="400" step="0.01" defaultValue={Number(employee.hours_per_month??243.36)} required/>
        <small className="muted">Default 243.36 (30.42×8). Define el valor hora.</small>
+      </label>
+      <label>Días de vacaciones disponibles
+       <input
+        type="text"
+        value={`${Number(employee.vacation_balance)} días`}
+        readOnly
+        tabIndex={-1}
+        aria-readonly="true"
+       />
+       <small className="muted">Solo consulta. Para acreditar o descontar usá “Ajustar saldo de vacaciones”.</small>
       </label>
       <label className="template-active-check" style={{alignSelf:"center"}}>
        <input name="exempt_from_ccss" type="checkbox" defaultChecked={!!employee.exempt_from_ccss}/>

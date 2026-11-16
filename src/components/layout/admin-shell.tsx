@@ -4,7 +4,7 @@ import Link from "next/link";
 import {usePathname} from "next/navigation";
 import {
  Menu,PanelLeftClose,PanelLeft,Bell,Search,LogOut,
- ClipboardCheck,TriangleAlert,LayoutDashboard,Users,Clock3,CalendarDays,ClipboardList,Wallet,ScrollText,AlarmClock,
+ ClipboardCheck,TriangleAlert,LayoutDashboard,Users,Clock3,ClipboardList,Wallet,ScrollText,AlarmClock,
 } from "lucide-react";
 import {Avatar} from "@/components/ui/avatar";
 import {CommandPalette} from "./command-palette";
@@ -27,7 +27,6 @@ const groups:{label:string;items:NavItem[]}[]=[
   {href:"/admin",label:"Resumen",icon:LayoutDashboard},
   {href:"/admin/empleados",label:"Empleados",icon:Users},
   {href:"/admin/asistencia",label:"Asistencia",icon:Clock3,badgeKey:"attendance"},
-  {href:"/admin/turnos",label:"Turnos",icon:CalendarDays},
   {href:"/admin/ausencias",label:"Vacaciones y ausencias",icon:ClipboardList},
   {href:"/admin/planilla",label:"Planilla",icon:Wallet,badgeKey:"ot"},
   {href:"/admin/recordatorios",label:"Recordatorios",icon:AlarmClock,badgeKey:"reminders"},
@@ -38,7 +37,7 @@ const groups:{label:string;items:NavItem[]}[]=[
 const crumbs:Record<string,string>={
  "/admin":"Resumen","/admin/operaciones":"Operaciones","/admin/operaciones/plantillas":"Plantillas",
  "/admin/operaciones/tareas":"Tareas","/admin/incidentes":"Incidentes","/admin/empleados":"Empleados",
- "/admin/asistencia":"Asistencia","/admin/turnos":"Turnos","/admin/ausencias":"Vacaciones y ausencias",
+ "/admin/asistencia":"Asistencia","/admin/ausencias":"Vacaciones y ausencias",
  "/admin/planilla":"Planilla","/admin/planilla/historial":"Historial de pagos","/admin/planilla/aguinaldo":"Aguinaldo",
  "/admin/recordatorios":"Recordatorios","/admin/auditoria":"Auditoría",
 };

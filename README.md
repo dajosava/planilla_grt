@@ -8,7 +8,7 @@ Plataforma operativa para Gasolinera Río Tempisque (Pueblo Viejo de Nicoya, Cos
 - **Incidentes** `/admin/incidentes`: inbox de reportes desde la tablet (categoría, severidad, foto).
 - **Tablet** `/operaciones`: sesión corta con código+PIN; checklist, foto de evidencia y reporte de incidentes. Enlace desde `/marcacion`.
 - Terminal `/marcacion`: código de empleado y PIN de 4 dígitos; entrada, salida, inicio y fin de descanso; foto de evidencia.
-- `/admin`: empleados (PIN, cédula, correo, fecha de ingreso), asistencia, turnos, vacaciones, preplanilla y auditoría.
+- `/admin`: empleados (PIN, cédula, correo, fecha de ingreso), asistencia, vacaciones, preplanilla y auditoría.
 - Supabase Auth con cuentas `admin` y `kiosk`, RLS, PIN con bcrypt, RPC transaccionales, auditoría.
 - Pruebas PGlite + CI (lint, tipos, tests, build).
 
@@ -38,7 +38,7 @@ El correo se guarda en el empleado y se copia a `payroll_items.employee_email` a
 
 Es una **base de asistencia y preplanilla**, no un motor legal certificado de planilla costarricense. Ver pendientes de CCSS/renta/feriados con el contador antes de usarlo para pagos reales.
 
-Los turnos son planificación; no generan horas extras automáticamente. Las horas operativas excluyen descansos marcados.
+La jornada (diurna / mixta / nocturna) se clasifica automáticamente con las marcaciones. Las horas operativas excluyen descansos marcados.
 
 ## Requisitos
 

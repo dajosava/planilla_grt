@@ -160,7 +160,7 @@ export function AttendanceOtAlert({
        </td>
        <td className="ot-cell-nowrap">{i.department}</td>
        <td className="ot-cell-nowrap">{dateOnly(i.work_date)}</td>
-       <td className="ot-cell-nowrap" title={i.scheduled?"Según turno asignado":"Sin turno asignado · revisión recomendada"}>
+       <td className="ot-cell-nowrap" title="Según marcación entrada/salida">
         {i.shift_label??"—"}
         <span className="muted small"> · lim. {lim} h</span>
        </td>
