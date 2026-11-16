@@ -11,11 +11,18 @@ Implementación de referencia: `src/lib/payroll.ts` + `supabase/migrations/20261
 | Pieza | Ruta | Rol |
 |---|---|---|
 | Motor TypeScript | `src/lib/payroll.ts` | Constantes, fórmulas, `calculateFortnight` |
+| Clasificación jornada CR | `src/lib/shift-cr.ts` | Diurna / Mixta / Nocturna + límites 8/7/6 h |
 | Tests del motor | `tests/payroll.test.ts` | Ejemplo cajero ₡419,755.93 |
-| Migración DB | `supabase/migrations/202610180001_payroll_fortnight.sql` | Columnas + RPCs |
-| Actions admin | `src/app/admin/actions.ts` | `createPayroll`, `updatePayroll` |
+| Tests jornada CR | `tests/shift-cr.test.ts` | Ejemplos art. 135 (entrada/salida) |
+| Migración DB | `supabase/migrations/202610180001_payroll_fortnight.sql` | Columnas + RPCs quincena |
+| Migración jornada CR | `supabase/migrations/202611150001_shift_classification_cr.sql` | `classify_shift_cr`, OT 8/7/6 |
+| Sync OT asistencia | `sync_payroll_ot_from_attendance` (migración 202610190010 + 202611150001) | Sugiere extras por día |
+| Actions admin | `src/app/admin/actions.ts` | `createPayroll`, `updatePayroll`, approve/reject OT |
 | UI planilla | `src/app/admin/planilla/page.tsx` | Crear quincena / editar conceptos |
+| UI asistencia | `src/app/admin/asistencia/page.tsx` | Jornada + extras por sesión |
+| Alertas OT | `src/components/attendance-ot-alert.tsx` | Avisos y aceptación en lote |
 | Empleados | `src/app/admin/empleados/page.tsx` | Horas/mes + exento CCSS |
+| Turnos | `src/app/admin/turnos/page.tsx` | Horario pactado (`shifts`) para límite OT |
 | Reporte HTML | `src/app/admin/planilla/[id]/reporte/page.tsx` | Comprobante cerrado |
 | CSV | `src/app/api/reportes/[id]/route.ts` | Export desglosado |
 | Spec Excel | `xls_actual/LOGICA-PLANILLA.md` | Reglas de negocio originales |
@@ -33,6 +40,15 @@ OT_FACTOR            = 1.5         // horas extra
 ```
 
 Montos internos: **centavos de CRC** (`bigint`), sin flotantes de moneda en DB.
+
+Límites ordinarios por tipo de jornada (`src/lib/shift-cr.ts`):
+
+```ts
+DAY   → 480 min (8 h)
+MIXED → 420 min (7 h)
+NIGHT → 360 min (6 h)
+NIGHT_THRESHOLD_MINUTES = 210  // 3 h 30 min nocturnas → pasa a Nocturna
+```
 
 ---
 
@@ -64,7 +80,7 @@ daily_wage_cents = round( monthly_salary_cents / 30.42 )
 
 Función: `dailyWageCents(salary)`
 
-### Extras y doble
+### Extras y doble (monto)
 
 ```text
 ot_amount_cents     = round( ot_hours × hourly_rate_cents × 1.5 )
@@ -73,6 +89,65 @@ double_amount_cents = round( double_hours × double_rate_cents )
 ```
 
 Funciones: `overtimeAmountCents`, `doubleAmountCents`
+
+Las **horas** extra sugeridas ya no son siempre `trabajadas − 8`: dependen del tipo de jornada (§3.1).
+
+### 3.1 Clasificación Diurna / Mixta / Nocturna (art. 135 CT)
+
+Referencia legal: franja **nocturna 19:00–05:00** (America/Costa_Rica).
+
+| Clasificación | Condición | Límite ordinario |
+|---|---|---|
+| **Diurna** (`DAY`) | Todo el trabajo efectivo entre 05:00 y 19:00 (0 min nocturnos) | **8 h** |
+| **Mixta** (`MIXED`) | Hay diurno y nocturno, y lo nocturno es **&lt; 3 h 30 min** | **7 h** |
+| **Nocturna** (`NIGHT`) | Todo nocturno, **o** mixta con ≥ **3 h 30 min** nocturnas | **6 h** |
+
+El motor cuenta minutos reales en la franja nocturna (incluido cruce de medianoche). No basta mirar solo la hora de entrada: un ingreso a las 16:00 puede cerrar diurna, mixta o nocturna según la salida.
+
+#### Ejemplos (`tests/shift-cr.test.ts`)
+
+| Entrada | Salida | Min. nocturnos | Tipo |
+|---|---|---|---|
+| 06:00 | 14:00 | 0 | Diurna |
+| 12:00 | 20:00 | 60 | Mixta |
+| 14:00 | 22:00 | 180 | Mixta |
+| 15:00 | 23:00 | 240 | Nocturna |
+| 18:00 | 02:00 (+1) | 420 | Nocturna |
+| 22:00 | 06:00 (+1) | 420 | Nocturna |
+| 03:00 | 11:00 | 120 | Mixta |
+
+#### Dos capas (recomendación Río Tempisque)
+
+1. **`scheduled_shift_type`** — jornada ordinaria pactada. Si existe fila en `shifts` para ese empleado/día, se clasifica con `starts_at` / `ends_at` del turno. Ese tipo fija el **límite OT** (8/7/6).
+2. **`actual_time_distribution`** — minutos diurnos/nocturnos del intervalo real de marcación (entrada → salida efectiva).
+
+Así un empleado **no cambia de categoría salarial** solo porque se quedó más tiempo: las horas de más van a extras sobre el límite del turno pactado.
+
+Si **no hay turno asignado**, se clasifica el intervalo real y se marca `needs_review` / «sin turno» en UI.
+
+#### Horas extra sugeridas (asistencia → planilla)
+
+```text
+worked_hours     = suma de effective_sessions del día (ya restan descansos)
+ordinary_limit   = 8 | 7 | 6   según classify (turno pactado si existe)
+ot_hours         = max(0, worked_hours − ordinary_limit)   (tope práctico 16 h)
+```
+
+Implementación:
+
+| Capa | Función / archivo |
+|---|---|
+| TS | `classifyShift`, `overtimeHours` → `src/lib/shift-cr.ts` |
+| SQL | `classify_shift_cr(start, end)`, `shift_ot_context(employee, date, window…)` |
+| Sync | `sync_payroll_ot_from_attendance` usa `shift_ot_context` |
+| Alertas | `list_attendance_ot_alerts` devuelve `shift_label`, `ordinary_limit_hours`, `ot_hours` |
+| UI | Columna **Jornada** en `/admin/asistencia` |
+
+**Notas / límites actuales**
+
+- El clasificador trabaja sobre un intervalo continuo; los descansos ya están descontados en `worked_hours` de `effective_sessions` para el **monto de OT**, pero el conteo de minutos nocturnos del tipo usa la ventana entrada–salida (sin restar break minuto a minuto).
+- No reclasificar el tipo ordinario con la cola de extras: priorizar siempre `shifts` cuando exista.
+- Migración requerida: `202611150001_shift_classification_cr.sql`.
 
 ### CCSS
 
@@ -194,6 +269,10 @@ Igual que antes: todos `reviewed`, sin jornadas abiertas ni ausencias pending, p
 | `create_payroll_fortnight` | `(p_month date, p_half int)` | Quincena 1–15 o 16–fin |
 | `create_payroll` | `(p_month date)` | Mes completo (`kind=monthly`, legacy/tests) |
 | `update_payroll_item` | `(id, ot_h, dbl_h, other_pay, shortage, receipt, other_ded, note, reviewed)` | Recalcula desglose + CCSS |
+| `sync_payroll_ot_from_attendance` | `(p_run_id uuid)` | Llena `payroll_ot_days` con OT según 8/7/6 |
+| `list_attendance_ot_alerts` | `(p_from, p_to)` | Alertas OT + tipo de jornada |
+| `classify_shift_cr` | `(p_start, p_end)` | JSON tipo / minutos / límite |
+| `shift_ot_context` | `(employee, date, window_start, window_end, worked_h)` | Preferencia turno pactado + OT |
 | `create_employee` / `update_employee` | + `p_hours_month`, `p_exempt_ccss` | Datos para tarifa y CCSS |
 | `_crc_hourly` / `_crc_round_colon` | helpers SQL | Mismo redondeo a colón |
 
@@ -222,17 +301,19 @@ Con 2 h extra: monto extra = `2 × 1725 × 1.5` = **₡5,175**.
 | Salario mensual | Adelanto (÷2) |
 | Horas/mes | Valor hora |
 | Exento CCSS (sí/no) | CCSS 10.83% sobre adelanto |
-| Horas extra / doble | Montos 1.5× y 2× |
+| Turno en `/admin/turnos` (opcional) | Tipo jornada pactada + límite 8/7/6 |
+| Marcaciones entrada/salida | Horas netas + clasificación / OT sugerido |
+| Aprobar / rechazar / ajustar OT | Montos 1.5× (y doble 2× si se captura) |
 | Otros pagos | Suma en adiciones |
 | Faltantes, facturas, otras | Suma en deducciones |
 | Revisado | — |
 | — | Bruto y neto |
 
-**No automatizado aún**
+**Parcial / pendiente**
 
-- Horas extra desde marcaciones (`effective_sessions`)
 - Comprobante día a día (grilla del Excel)
 - Corrida de aguinaldo en UI (solo helper en TS)
+- Restar descansos **minuto a minuto** dentro del conteo nocturno del clasificador (hoy el OT usa horas netas de `effective_sessions`; el tipo usa la ventana continua)
 
 ---
 
@@ -240,9 +321,14 @@ Con 2 h extra: monto extra = `2 × 1725 × 1.5` = **₡5,175**.
 
 ```bash
 npx vitest run tests/payroll.test.ts
+npx vitest run tests/shift-cr.test.ts
 ```
 
-Aplicar migración `202610180001_payroll_fortnight.sql` en Supabase antes de usar la UI de planilla quincenal.
+Aplicar en Supabase (orden):
+
+1. `202610180001_payroll_fortnight.sql` — planilla quincenal  
+2. migraciones OT asistencia (`202610190006` … `202610190015`) si aún no están  
+3. **`202611150001_shift_classification_cr.sql`** — clasificación CR y umbrales 8/7/6
 
 ---
 

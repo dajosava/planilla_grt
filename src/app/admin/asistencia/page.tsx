@@ -7,13 +7,17 @@ import {AckAttendanceAlert} from "@/components/ack-attendance-alert";
 import {Badge} from "@/components/ui/badge";
 import {correctSession,deleteAttendanceSession} from "../actions";
 import {DeleteAttendance} from "@/components/delete-attendance";
+import {AttendancePhotoThumb} from "@/components/attendance-photo-thumb";
 import {dateTime,todayCR,labels} from "@/lib/format";
+import {classifyShift,overtimeHours,type ShiftResult} from "@/lib/shift-cr";
 
 const MAX_OPEN_HOURS=12;
+const PHOTO_EAGER_MS=24*60*60*1000;
 const isDate=(v:unknown):v is string=>typeof v==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v));
 const addDays=(date:string,days:number)=>{const d=new Date(date+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)};
 const startCR=(date:string)=>new Date(date+"T00:00:00-06:00").toISOString();
 const openHours=(start:string)=>(Date.now()-new Date(start).getTime())/3600000;
+const photoEager=(occurredAt:string,now:number)=>now-new Date(occurredAt).getTime()<PHOTO_EAGER_MS;
 
 export default async function Page({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
  const {client}=await requireRole("admin");
@@ -28,15 +32,38 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  let eventsQuery=client.from("attendance_events").select("id,session_id,employee_id,kind,occurred_at,punch_photos(status)").gte("occurred_at",startCR(from)).lt("occurred_at",startCR(addDays(to,2))).order("occurred_at").limit(3000);
  if(employee){query=query.eq("employee_id",employee);eventsQuery=eventsQuery.eq("employee_id",employee)}
 
- const [sessions,open,emp,events,otRpc,acks]=await Promise.all([
+ const [sessions,open,emp,events,otRpc,acks,shiftsRes]=await Promise.all([
   query,
   client.from("effective_sessions").select("*").is("ended_at",null).order("started_at"),
   client.from("employees").select("id,code,full_name").order("full_name"),
   eventsQuery,
   client.rpc("list_attendance_ot_alerts",{p_from:from,p_to:to}),
   client.from("attendance_alert_acks").select("kind,ref_id").in("kind",["missing_photo","missing_exit"]),
+  client.from("shifts").select("employee_id,starts_at,ends_at")
+   .lt("starts_at",startCR(addDays(to,2)))
+   .gt("ends_at",startCR(addDays(from,-1))),
  ]);
  if(sessions.error||open.error||emp.error||events.error)throw new Error("No se pudo cargar la asistencia");
+ const shiftsByEmp=new Map<string,{starts_at:string;ends_at:string}[]>();
+ for(const sh of shiftsRes.data??[]){
+  const list=shiftsByEmp.get(sh.employee_id)??[];
+  list.push({starts_at:sh.starts_at,ends_at:sh.ends_at});
+  shiftsByEmp.set(sh.employee_id,list);
+ }
+ function sessionShift(employeeId:string,startedAt:string,endedAt:string|null):{shift:ShiftResult;scheduled:boolean}|null{
+  if(!endedAt)return null;
+  const assigned=(shiftsByEmp.get(employeeId)??[]).find(sh=>{
+   const a=new Date(sh.starts_at).getTime();
+   const b=new Date(sh.ends_at).getTime();
+   const s=new Date(startedAt).getTime();
+   const e=new Date(endedAt).getTime();
+   return a<e&&b>s;
+  });
+  try{
+   if(assigned)return {shift:classifyShift(assigned.starts_at,assigned.ends_at),scheduled:true};
+   return {shift:classifyShift(startedAt,endedAt),scheduled:false};
+  }catch{return null}
+ }
 
  const ackedPhoto=new Set((acks.data??[]).filter(a=>a.kind==="missing_photo").map(a=>a.ref_id));
  const ackedExit=new Set((acks.data??[]).filter(a=>a.kind==="missing_exit").map(a=>a.ref_id));
@@ -71,11 +98,32 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   ?(otItems.length?1:0)
   :Number(otData?.people??0);
  const otHoursTotal=otItems.reduce((s,i)=>s+Number(i.ot_hours||0),0);
+ const photoNow=Date.now();
 
  return <>
   <Heading
    title="Asistencia"
-   description="Revisa jornadas, corrige horarios o borra marcas por equivocación. Las horas &gt;8/día se proponen como extras para planilla."
+   description="Revisa jornadas (diurna / mixta / nocturna según legislación CR). Las extras se calculan sobre 8h, 7h o 6h según el tipo de jornada."
+   actions={
+    <div className="attendance-toolbar-filters">
+     <div className="attendance-filter-presets" role="group" aria-label="Filtros rápidos">
+      {presets.map(p=>(
+       <Link key={p.label} href={link(p.from,p.to)} className={`badge${p.from===from&&p.to===to?" selected":""}`}>{p.label}</Link>
+      ))}
+     </div>
+     <form className="attendance-filters" method="get">
+      <label>Desde<input type="date" name="desde" defaultValue={from} max={today}/></label>
+      <label>Hasta<input type="date" name="hasta" defaultValue={to} max={today}/></label>
+      <label>Empleado
+       <select name="empleado" defaultValue={employee}>
+        <option value="">Todos</option>
+        {emp.data?.map(e=><option key={e.id} value={e.id}>{e.full_name} ({e.code})</option>)}
+       </select>
+      </label>
+      <button type="submit" className="secondary">Filtrar</button>
+     </form>
+    </div>
+   }
   />
 
   <AttendanceOtAlert items={otItems} people={otPeople} otHours={otHoursTotal}/>
@@ -118,54 +166,29 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    </section>
   )}
 
-  <div className="notice">
-   <strong>Descansos y cálculo salarial</strong>
-   <p>Las horas mostradas excluyen todos los descansos marcados. Son un dato operativo; si una jornada supera 8 h, el manager debe aprobar las extras para que entren a la planilla.</p>
-  </div>
-
-  <CollapsiblePanel title="Filtrar jornadas">
-   <div className="filter-presets">
-    {presets.map(p=>(
-     <Link key={p.label} href={link(p.from,p.to)} className={`badge${p.from===from&&p.to===to?" selected":""}`}>{p.label}</Link>
-    ))}
-   </div>
-   <form className="filters" method="get">
-    <label>Desde<input type="date" name="desde" defaultValue={from} max={today}/></label>
-    <label>Hasta<input type="date" name="hasta" defaultValue={to} max={today}/></label>
-    <label>Empleado
-     <select name="empleado" defaultValue={employee}>
-      <option value="">Todos</option>
-      {emp.data?.map(e=><option key={e.id} value={e.id}>{e.full_name} ({e.code})</option>)}
-     </select>
-    </label>
-    <button>Filtrar</button>
-   </form>
-  </CollapsiblePanel>
-
   <Panel title={from===to?`Jornadas del ${from}`:`Jornadas del ${from} al ${to}`}>
    {!rows.length?<Empty text="No hay jornadas en este rango."/>:(
-    <Table headers={["Empleado","Fotos","Entrada","Salida","Horas operativas","Estado"]}>
+    <Table headers={["Empleado","Fotos","Entrada","Salida","Jornada","Horas","Estado"]}>
      {rows.map(s=>{
       const hours=s.worked_hours===null?null:Number(s.worked_hours);
-      const isOt=hours!=null&&hours>8;
+      const classified=sessionShift(s.employee_id,s.started_at,s.ended_at);
+      const ot=classified&&hours!=null?overtimeHours(hours,classified.shift):0;
+      const isOt=ot>0;
       const empLabel=names.get(s.employee_id)??"Empleado";
       return (
        <tr key={s.id} className={isOt?"ot-row":undefined}>
         <td>{empLabel}</td>
         <td>
          <div className="photo-thumbs">
-          {(bySession.get(s.id)??[]).map(p=>p.photo==="captured"?(
-           <a key={p.id} className="photo-thumb" href={`/api/fotos/${p.id}`} target="_blank" rel="noopener" title={`${labels[p.kind]} · ${dateTime(p.occurred_at)}`}>
-            <img src={`/api/fotos/${p.id}`} alt={`Foto de ${labels[p.kind]}`} loading="lazy"/>
-            <span className="photo-thumb-label">{labels[p.kind]}</span>
-           </a>
-          ):(
-           <span key={p.id} className="photo-thumb photo-thumb-empty" title={`${labels[p.kind]} · ${dateTime(p.occurred_at)}`}>
-            <span className={`no-photo${p.photo==="missing"?"":" expired"}`}>
-             {p.photo==="missing"?"Sin foto":p.photo==="expired"?"Vencida":"—"}
-            </span>
-            <span className="photo-thumb-label">{labels[p.kind]}</span>
-           </span>
+          {(bySession.get(s.id)??[]).map(p=>(
+           <AttendancePhotoThumb
+            key={p.id}
+            id={p.id}
+            kindLabel={labels[p.kind]??p.kind}
+            title={`${labels[p.kind]??p.kind} · ${dateTime(p.occurred_at)}`}
+            status={p.photo}
+            eager={photoEager(p.occurred_at,photoNow)}
+           />
           ))}
          </div>
         </td>
@@ -200,8 +223,16 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
          </div>
         </td>
         <td>
+         {classified?(
+          <span title={classified.scheduled?"Según turno asignado":"Sin turno asignado · revisión recomendada"}>
+           {classified.shift.label}
+           <small className="muted"> · lim. {classified.shift.legalOrdinaryLimitHours} h{classified.scheduled?"":" · sin turno"}</small>
+          </span>
+         ):"—"}
+        </td>
+        <td>
          {hours===null?"—":hours.toFixed(2)}
-         {isOt&&<small className="text-danger"> · +{(hours-8).toFixed(2)} h extra</small>}
+         {isOt&&<small className="text-danger"> · +{ot.toFixed(2)} h extra</small>}
         </td>
         <td>
          {missingExit(s)?<Badge tone="danger">Falta salida</Badge>:

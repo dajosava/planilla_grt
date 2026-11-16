@@ -1,11 +1,13 @@
+"use client";
+import {useActionState,useCallback,useEffect,useMemo,useState} from "react";
 import Link from "next/link";
 import {AlarmClock} from "lucide-react";
-import {ActionForm} from "@/components/action-form";
+import {type ActionState} from "@/components/action-form";
 import {AckAttendanceAlert} from "@/components/ack-attendance-alert";
 import {Table} from "@/components/admin-ui";
 import {Badge} from "@/components/ui/badge";
 import {dateOnly} from "@/lib/format";
-import {approvePayrollOt,rejectPayrollOt} from "@/app/admin/actions";
+import {ackAttendanceAlertBulk} from "@/app/admin/actions";
 
 export type AttendanceOtItem={
  employee_id:string;
@@ -15,6 +17,12 @@ export type AttendanceOtItem={
  work_date:string;
  worked_hours:number;
  ot_hours:number;
+ shift_type?:string;
+ shift_label?:string;
+ ordinary_limit_hours?:number;
+ night_minutes?:number;
+ scheduled?:boolean;
+ needs_review?:boolean;
  item_id:string|null;
  run_id:string|null;
  company:string|null;
@@ -23,23 +31,87 @@ export type AttendanceOtItem={
 };
 
 const statusLabel:Record<AttendanceOtItem["alert_status"],string>={
- pending_approval:"Por aprobar en planilla",
- needs_payroll:"Sin quincena creada",
- needs_sync:"Quincena creada · sincronizar",
+ pending_approval:"Por aprobar",
+ needs_payroll:"Sin quincena",
+ needs_sync:"Sincronizar",
  approved:"Aprobado",
  rejected:"Rechazado",
 };
 
+function ackKey(i:AttendanceOtItem){
+ return i.ack_ref??`${i.employee_id}|${i.work_date}`;
+}
+
+function BulkAckBar({
+ selectedRefs,allCount,allSelected,onToggleAll,onClear,
+}:{
+ selectedRefs:string[];
+ allCount:number;
+ allSelected:boolean;
+ onToggleAll:()=>void;
+ onClear:()=>void;
+}){
+ const [state,formAction,pending]=useActionState(ackAttendanceAlertBulk,{} as ActionState);
+
+ useEffect(()=>{
+  if(state.success)onClear();
+ },[state.success,onClear]);
+
+ return (
+  <div className="ot-bulk-bar">
+   <label className="ot-check-label ot-check-all">
+    <input
+     type="checkbox"
+     checked={allSelected}
+     onChange={onToggleAll}
+     disabled={!allCount||pending}
+    />
+    <span>Seleccionar todos ({allCount})</span>
+   </label>
+   {selectedRefs.length>0&&(
+    <span className="muted small">
+     {selectedRefs.length} seleccionado{selectedRefs.length===1?"":"s"}
+    </span>
+   )}
+   <form action={formAction} className="ot-bulk-form">
+    <input type="hidden" name="kind" value="ot_day"/>
+    <input type="hidden" name="ref_ids" value={selectedRefs.join("\n")}/>
+    <button className="primary" disabled={pending||!selectedRefs.length} type="submit">
+     {pending?"Aceptando…":"Aceptar avisos seleccionados"}
+    </button>
+   </form>
+   {state.error&&<p role="alert" className="alert error">{state.error}</p>}
+   {state.success&&<p role="status" className="alert success">{state.success}</p>}
+  </div>
+ );
+}
+
 export function AttendanceOtAlert({
- items,people,otHours,
+ items,people,
 }:{
  items:AttendanceOtItem[];
  people:number;
- otHours:number;
+ otHours?:number;
 }){
+ const [selected,setSelected]=useState<Set<string>>(()=>new Set());
+
+ const allRefs=useMemo(()=>items.map(ackKey),[items]);
+ const allSelected=allRefs.length>0&&allRefs.every(r=>selected.has(r));
+ const selectedRefs=useMemo(()=>allRefs.filter(r=>selected.has(r)),[allRefs,selected]);
+
  if(!items.length)return null;
- const pending=items.filter(i=>i.alert_status==="pending_approval");
- const needPayroll=items.filter(i=>i.alert_status==="needs_payroll"||i.alert_status==="needs_sync");
+
+ function toggleAll(){
+  setSelected(allSelected?new Set():new Set(allRefs));
+ }
+ function toggleRef(ref:string){
+  setSelected(prev=>{
+   const next=new Set(prev);
+   if(next.has(ref))next.delete(ref);else next.add(ref);
+   return next;
+  });
+ }
+ const clearSelection=useCallback(()=>setSelected(new Set()),[]);
 
  return (
   <section className="panel attendance-alerts ot-alerts" role="alert">
@@ -51,53 +123,62 @@ export function AttendanceOtAlert({
        ?"1 persona registró horas extra"
        :`${people} personas registraron horas extra`}
      </h2>
-     <p className="muted small">
-      {items.length} día(s) · {otHours.toFixed(2)} h extra (&gt;8 h/día).
-      Podés aprobarlas para planilla o aceptar el aviso si ya lo revisaste.
-     </p>
     </div>
     <div className="button-row">
      <Link className="button" href="/admin/planilla">Ir a planilla</Link>
     </div>
    </div>
 
-   <Table headers={["Empleado","Sociedad","Día","Trabajó","Extra","Estado","Acción"]}>
+   <BulkAckBar
+    selectedRefs={selectedRefs}
+    allCount={allRefs.length}
+    allSelected={allSelected}
+    onToggleAll={toggleAll}
+    onClear={clearSelection}
+   />
+
+   <Table headers={["","Empleado","Sociedad","Día","Jornada","Trabajó","Extra","Estado","Acción"]}>
     {items.map(i=>{
      const key=`${i.employee_id}-${i.work_date}`;
-     const ackRef=i.ack_ref??`${i.employee_id}|${i.work_date}`;
+     const ref=ackKey(i);
+     const lim=i.ordinary_limit_hours??8;
      return (
-      <tr key={key}>
-       <td><strong>{i.employee_name}</strong><small>{i.employee_code}</small></td>
-       <td>{i.department}</td>
-       <td>{dateOnly(i.work_date)}</td>
-       <td>{Number(i.worked_hours).toFixed(2)} h</td>
-       <td><strong>{Number(i.ot_hours).toFixed(2)} h</strong></td>
+      <tr key={key} className={selected.has(ref)?"ot-row-selected":undefined}>
        <td>
+        <label className="ot-check-label">
+         <input
+          type="checkbox"
+          checked={selected.has(ref)}
+          onChange={()=>toggleRef(ref)}
+          aria-label={`Seleccionar aviso de ${i.employee_name}`}
+         />
+        </label>
+       </td>
+       <td className="ot-cell-employee" title={`${i.employee_name} (${i.employee_code})`}>
+        <strong>{i.employee_name}</strong>
+        <span className="muted small"> ({i.employee_code})</span>
+       </td>
+       <td className="ot-cell-nowrap">{i.department}</td>
+       <td className="ot-cell-nowrap">{dateOnly(i.work_date)}</td>
+       <td className="ot-cell-nowrap" title={i.scheduled?"Según turno asignado":"Sin turno asignado · revisión recomendada"}>
+        {i.shift_label??"—"}
+        <span className="muted small"> · lim. {lim} h</span>
+       </td>
+       <td className="ot-cell-nowrap ot-cell-num">{Number(i.worked_hours).toFixed(2)} h</td>
+       <td className="ot-cell-nowrap ot-cell-num"><strong>{Number(i.ot_hours).toFixed(2)} h</strong></td>
+       <td className="ot-cell-status" title={
+        i.alert_status==="pending_approval"?"Por aprobar en planilla"
+        :i.alert_status==="needs_payroll"?"Sin quincena creada"
+        :i.alert_status==="needs_sync"?"Quincena creada · sincronizar"
+        :statusLabel[i.alert_status]
+       }>
         <Badge tone={i.alert_status==="pending_approval"?"danger":"pending"}>
          {statusLabel[i.alert_status]}
         </Badge>
        </td>
-       <td>
-        <div className="row-actions alert-row-actions">
-         {i.alert_status==="pending_approval"&&i.item_id?(
-          <>
-           <ActionForm action={approvePayrollOt} submit="Aprobar extras">
-            <input type="hidden" name="id" value={i.item_id}/>
-           </ActionForm>
-           <ActionForm action={rejectPayrollOt} submit="Rechazar">
-            <input type="hidden" name="id" value={i.item_id}/>
-           </ActionForm>
-          </>
-         ):i.alert_status==="needs_payroll"?(
-          <Link className="button secondary btn-sm" href={`/admin/planilla?empresa=${encodeURIComponent(i.department)}`}>
-           Crear quincena
-          </Link>
-         ):i.alert_status==="needs_sync"&&i.run_id?(
-          <Link className="button secondary btn-sm" href={`/admin/planilla?empresa=${encodeURIComponent(i.department||i.company||"Gasolinera")}&run=${i.run_id}`}>
-           Abrir quincena
-          </Link>
-         ):null}
-         <AckAttendanceAlert kind="ot_day" refId={ackRef} label="Aceptar aviso"/>
+       <td className="ot-cell-actions">
+        <div className="row-actions alert-row-actions ot-actions-inline">
+         <AckAttendanceAlert kind="ot_day" refId={ref} label="Aceptar"/>
         </div>
        </td>
       </tr>
@@ -105,13 +186,6 @@ export function AttendanceOtAlert({
     })}
    </Table>
 
-   {(pending.length>0||needPayroll.length>0)&&(
-    <p className="muted small" style={{marginTop:12}}>
-     {pending.length>0&&<>Aprobar extras las incluye en el neto de la quincena. </>}
-     {needPayroll.length>0&&<>Si aún no hay quincena, creala primero. </>}
-     «Aceptar aviso» solo oculta la alerta (no paga las extras).
-    </p>
-   )}
   </section>
  );
 }

@@ -56,7 +56,28 @@ export async function ackAttendanceAlert(_:ActionState,form:FormData):Promise<Ac
   return {success:"Aviso marcado como revisado."};
  }catch(e){return failure(e)}
 }
-export async function createPayroll(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const month=z.string().regex(/^\d{4}-\d{2}$/).parse(form.get("month"));const half=z.coerce.number().int().refine((n):n is 1|2=>n===1||n===2).parse(form.get("half"));const company=companySchema.parse(form.get("company"));dateSchema.parse(month+"-01");const {error}=await client.rpc("create_payroll_fortnight",{p_month:month+"-01",p_half:half,p_company:company});dbError(error);revalidatePath("/admin/planilla");return {success:`Quincena ${half} de ${company} creada. Se calcularon sugerencias de horas extra desde asistencia (>8 h/día).`}}catch(e){return failure(e)}}
+
+export async function ackAttendanceAlertBulk(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const kind=z.enum(["missing_photo","missing_exit","ot_day"]).parse(form.get("kind")||"ot_day");
+  const raw=form.getAll("ref_ids").flatMap(v=>String(v).split("\n")).map(s=>s.trim()).filter(Boolean);
+  const refs=[...new Set(raw.map(r=>z.string().trim().min(1).max(120).parse(r)))];
+  if(!refs.length)throw new Error("Seleccioná al menos un aviso.");
+  let ok=0;
+  for(const refId of refs){
+   const {error}=await client.rpc("ack_attendance_alert",{p_kind:kind,p_ref_id:refId,p_note:""});
+   dbError(error);
+   ok++;
+  }
+  revalidatePath("/admin/asistencia");
+  revalidatePath("/admin","layout");
+  return {success:ok===1
+   ?"Aviso marcado como revisado."
+   :`${ok} avisos marcados como revisados.`};
+ }catch(e){return failure(e)}
+}
+export async function createPayroll(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const month=z.string().regex(/^\d{4}-\d{2}$/).parse(form.get("month"));const half=z.coerce.number().int().refine((n):n is 1|2=>n===1||n===2).parse(form.get("half"));const company=companySchema.parse(form.get("company"));dateSchema.parse(month+"-01");const {error}=await client.rpc("create_payroll_fortnight",{p_month:month+"-01",p_half:half,p_company:company});dbError(error);revalidatePath("/admin/planilla");return {success:`Quincena ${half} de ${company} creada. Se calcularon extras según jornada diurna/mixta/nocturna (límites 8/7/6 h).`}}catch(e){return failure(e)}}
 export async function updatePayroll(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{
  const id=z.uuid().parse(form.get("id"));
  const otHours=z.coerce.number().min(0).max(400).parse(form.get("ot_hours")||"0");
@@ -236,6 +257,49 @@ export async function rejectPayrollOt(_:ActionState,form:FormData):Promise<Actio
   revalidatePath("/admin/asistencia");
   revalidatePath("/admin/planilla");
   return {success:"Horas extra rechazadas (no se pagan)."};
+ }catch(e){return failure(e)}
+}
+
+function parseOtItemIds(form:FormData){
+ const raw=form.getAll("ids").flatMap(v=>String(v).split(",")).map(s=>s.trim()).filter(Boolean);
+ const ids=[...new Set(raw.map(id=>z.uuid().parse(id)))];
+ if(!ids.length)throw new Error("Seleccioná al menos un empleado.");
+ return ids;
+}
+
+export async function approvePayrollOtBulk(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const ids=parseOtItemIds(form);
+  let ok=0;
+  for(const id of ids){
+   const {error}=await client.rpc("approve_payroll_ot",{p_item_id:id,p_hours:null});
+   dbError(error);
+   ok++;
+  }
+  revalidatePath("/admin/planilla");
+  revalidatePath("/admin/asistencia");
+  return {success:ok===1
+   ?"Horas extra aprobadas e incluidas en el neto."
+   :`${ok} empleados con horas extra aprobadas.`};
+ }catch(e){return failure(e)}
+}
+
+export async function rejectPayrollOtBulk(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const ids=parseOtItemIds(form);
+  let ok=0;
+  for(const id of ids){
+   const {error}=await client.rpc("reject_payroll_ot",{p_item_id:id});
+   dbError(error);
+   ok++;
+  }
+  revalidatePath("/admin/asistencia");
+  revalidatePath("/admin/planilla");
+  return {success:ok===1
+   ?"Horas extra rechazadas (no se pagan)."
+   :`${ok} empleados con horas extra rechazadas.`};
  }catch(e){return failure(e)}
 }
 

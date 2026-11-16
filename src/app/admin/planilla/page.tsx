@@ -101,7 +101,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
    {isDraft&&pendingOt.length>0&&(
     <div className="alert error" role="alert">
      <strong>⚠ Horas extra pendientes de aprobar:</strong>{" "}
-     {pendingOt.length} empleado(s) · {pendingOtHours.toFixed(2)} h sugeridas desde asistencia (&gt;8 h/día).
+     {pendingOt.length} empleado(s) · {pendingOtHours.toFixed(2)} h sugeridas desde asistencia (límites 8/7/6 h según jornada).
      No podés cerrar la quincena hasta aprobarlas o rechazarlas.
     </div>
    )}
