@@ -52,6 +52,32 @@ describe("classifyShift (Código de Trabajo CR)",()=>{
   expect(r.nightMinutes).toBe(120);
  });
 
+ it("04:45–13:00 → Diurna (tolerancia 20 min antes de 05:00)",()=>{
+  const r=classifyShift("2026-03-15T04:45:00-06:00",d("13:00"));
+  expect(r.type).toBe("DAY");
+  expect(r.nightMinutes).toBe(0);
+  expect(r.legalOrdinaryLimitHours).toBe(8);
+  expect(r.workedMinutes).toBe(8*60+15); // conserva entrada real 04:45
+ });
+
+ it("04:40–12:40 → Diurna (límite inferior de la tolerancia)",()=>{
+  const r=classifyShift("2026-03-15T04:40:00-06:00","2026-03-15T12:40:00-06:00");
+  expect(r.type).toBe("DAY");
+  expect(r.nightMinutes).toBe(0);
+ });
+
+ it("04:39–12:39 → Mixta (fuera de tolerancia)",()=>{
+  const r=classifyShift("2026-03-15T04:39:00-06:00","2026-03-15T12:39:00-06:00");
+  expect(r.type).toBe("MIXED");
+  expect(r.nightMinutes).toBe(21); // 04:39–05:00
+ });
+
+ it("04:59–13:00 → Diurna (límite superior de la tolerancia)",()=>{
+  const r=classifyShift("2026-03-15T04:59:00-06:00",d("13:00"));
+  expect(r.type).toBe("DAY");
+  expect(r.nightMinutes).toBe(0);
+ });
+
  it("calcula OT con umbral de 30 min (menos de 30 → 0; 30+ → total)",()=>{
   const night=classifyShift(d("15:00"),d("23:00")); // lim 6 h
   expect(overtimeHours(6,night)).toBe(0);

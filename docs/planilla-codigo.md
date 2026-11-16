@@ -103,11 +103,51 @@ Referencia legal: franja **nocturna 19:00–05:00** (America/Costa_Rica).
 
 El motor cuenta minutos reales en la franja nocturna (incluido cruce de medianoche). No basta mirar solo la hora de entrada: un ingreso a las 16:00 puede cerrar diurna, mixta o nocturna según la salida.
 
+#### Tolerancia diurna temprana (20 min antes de las 05:00)
+
+Motivo: quienes empiezan jornada diurna a las 5:00 a. m. a veces marcan unos minutos antes. Sin tolerancia, esos minutos caen en franja nocturna (19:00–05:00) y la jornada se clasifica como **Mixta** (límite 7 h) en lugar de **Diurna** (límite 8 h).
+
+| Concepto | Valor |
+|---|---|
+| Ventana de tolerancia | **04:40 – 04:59** (America/Costa_Rica) |
+| Referencia de clasificación | **05:00** del mismo día |
+| Constante TS | `EARLY_DAY_TOLERANCE_MINUTES = 20` en `src/lib/shift-cr.ts` |
+| SQL | `classify_shift_cr` (migración `202611160003_early_day_tolerance.sql`) |
+
+**Regla automática**
+
+1. Si la **hora real de entrada** está entre 04:40 y 04:59 CR inclusive, el algoritmo usa **05:00** solo como inicio para contar minutos diurnos vs nocturnos y decidir Diurna / Mixta / Nocturna.
+2. La **hora real de entrada se conserva** en asistencia, horas trabajadas (`worked_hours` / `workedMinutes`) y cálculo de extras.
+3. Entradas a las **04:39 o antes** (o cualquier otra hora fuera de esa ventana) **no** reciben el snap: los minutos previos a las 05:00 cuentan como nocturnos normales.
+
+```text
+entrada real ∈ [04:40, 04:59] CR
+  → classify_from = 05:00 CR   (solo para day/night)
+  → workedMinutes = salida − entrada_real
+  → nightMinutes  = countNight(classify_from → salida)
+  → tipo / límite = según nightMinutes (0 → Diurna 8 h, …)
+
+entrada real < 04:40  (ej. 04:39)
+  → sin tolerancia; nightMinutes incluye 04:xx–05:00
+```
+
+**Qué cambia / qué no**
+
+| Se ajusta | No se toca |
+|---|---|
+| Conteo diurno/nocturno para el **tipo** de jornada | Timestamp de marcación en DB |
+| Límite ordinario OT (8 / 7 / 6) derivado del tipo | Horas netas trabajadas del día |
+| UI “Jornada” en asistencia / alertas OT | Fotos, acks, planilla ya cerrada |
+
 #### Ejemplos (`tests/shift-cr.test.ts`)
 
 | Entrada | Salida | Min. nocturnos | Tipo |
 |---|---|---|---|
 | 06:00 | 14:00 | 0 | Diurna |
+| 04:45 | 13:00 | 0 | Diurna (tolerancia → clasifica desde 05:00; worked = 8 h 15) |
+| 04:40 | 12:40 | 0 | Diurna (límite inferior de tolerancia) |
+| 04:59 | 13:00 | 0 | Diurna (límite superior de tolerancia) |
+| 04:39 | 12:39 | 21 | Mixta (fuera de tolerancia) |
 | 12:00 | 20:00 | 60 | Mixta |
 | 14:00 | 22:00 | 180 | Mixta |
 | 15:00 | 23:00 | 240 | Nocturna |
@@ -117,7 +157,7 @@ El motor cuenta minutos reales en la franja nocturna (incluido cruce de medianoc
 
 #### Clasificación automática (solo marcación)
 
-La jornada (Diurna / Mixta / Nocturna) y el límite OT (8/7/6) se calculan con el intervalo real de **entrada → salida**. No hay módulo de turnos planificados.
+La jornada (Diurna / Mixta / Nocturna) y el límite OT (8/7/6) se calculan con la marcación de **entrada → salida**, aplicando la tolerancia diurna temprana cuando corresponde. No hay módulo de turnos planificados.
 
 #### Horas extra sugeridas (asistencia → planilla)
 
@@ -136,16 +176,17 @@ Implementación:
 
 | Capa | Función / archivo |
 |---|---|
-| TS | `classifyShift`, `overtimeHours` → `src/lib/shift-cr.ts` |
-| SQL | `classify_shift_cr(start, end)`, `shift_ot_context(…)` (solo ventana real) |
+| TS | `classifyShift`, `classificationStartForDayNight`, `overtimeHours` → `src/lib/shift-cr.ts` |
+| SQL | `classify_shift_cr(start, end)` (incluye tolerancia 04:40–04:59), `shift_ot_context(…)` |
 | Sync | `sync_payroll_ot_from_attendance` usa `shift_ot_context` |
 | Alertas | `list_attendance_ot_alerts` devuelve `shift_label`, `ordinary_limit_hours`, `ot_hours` |
 | UI | Columna **Jornada** en `/admin/asistencia` |
+| Tests | `tests/shift-cr.test.ts` (casos 04:40 / 04:45 / 04:59 / 04:39) |
 
 **Notas / límites actuales**
 
 - El clasificador trabaja sobre un intervalo continuo; los descansos ya están descontados en `worked_hours` de `effective_sessions` para el **monto de OT**, pero el conteo de minutos nocturnos del tipo usa la ventana entrada–salida (sin restar break minuto a minuto).
-- Migraciones: `202611150001_shift_classification_cr.sql`, `202611160001_ot_grace_30min.sql`, `202611160002_ot_from_punch_only.sql`.
+- Migraciones: `202611150001_shift_classification_cr.sql`, `202611160001_ot_grace_30min.sql`, `202611160002_ot_from_punch_only.sql`, `202611160003_early_day_tolerance.sql`.
 
 ### CCSS
 

@@ -33,6 +33,12 @@ export const OT_GRACE_HOURS=OT_GRACE_MINUTES/60;
 const CR_TZ="America/Costa_Rica";
 /** Minutos nocturnos que convierten mixta → nocturna (3 h 30 min). */
 export const NIGHT_THRESHOLD_MINUTES=210;
+/**
+ * Tolerancia de entrada temprana a jornada diurna:
+ * si marca entre 04:40 y 04:59 CR, la clasificación diurno/nocturno
+ * usa 05:00 como inicio (la hora real de entrada se conserva para horas trabajadas).
+ */
+export const EARLY_DAY_TOLERANCE_MINUTES=20;
 
 function hourInCostaRica(ms:number):number{
  return Number(
@@ -42,6 +48,28 @@ function hourInCostaRica(ms:number):number{
    hourCycle:"h23",
   }).format(new Date(ms))
  );
+}
+
+function minuteInCostaRica(ms:number):number{
+ return Number(
+  new Intl.DateTimeFormat("en-US",{
+   timeZone:CR_TZ,
+   minute:"2-digit",
+  }).format(new Date(ms))
+ );
+}
+
+/**
+ * Si la entrada cae en 04:40–04:59 CR, desplaza el inicio de clasificación a 05:00 CR.
+ * No altera la hora real de marcación (solo el conteo diurno/nocturno).
+ */
+export function classificationStartForDayNight(realStart:Date):Date{
+ const hour=hourInCostaRica(realStart.getTime());
+ const minute=minuteInCostaRica(realStart.getTime());
+ if(hour===4&&minute>=60-EARLY_DAY_TOLERANCE_MINUTES){
+  return new Date(realStart.getTime()+(60-minute)*60_000);
+ }
+ return realStart;
 }
 
 /** Minutos efectivos en franja nocturna (19:00–05:00 CR), minuto a minuto. */
@@ -68,7 +96,8 @@ export function classifyShift(clockIn:string|Date,clockOut:string|Date):ShiftRes
  }
 
  const workedMinutes=Math.round((end.getTime()-start.getTime())/60_000);
- const nightMinutes=countNightMinutes(start,end);
+ const classifyFrom=classificationStartForDayNight(start);
+ const nightMinutes=countNightMinutes(classifyFrom,end);
  const dayMinutes=Math.max(0,workedMinutes-nightMinutes);
 
  let type:ShiftType;
