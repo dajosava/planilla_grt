@@ -26,12 +26,18 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@serwist/turbopack": "^9.5.13",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.12",
     "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.7",
+    "jsdom": "^29.1.1",
     "sharp": "^0.35.5",
     "typescript": "^6.0.3",
     "vitest": "^5.0.2"

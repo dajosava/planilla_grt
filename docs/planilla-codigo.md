@@ -63,13 +63,32 @@ hourly_rate_cents = round_a_colón( monthly_salary_cents / hours_month )
 
 Función: `hourlyRateCents(salary, hoursMonth?)`
 
-### Adelanto quincenal
+### Adelanto quincenal (empleados mensuales)
 
 ```text
 advance_cents = round( monthly_salary_cents / 2 )
 ```
 
 Función: `fortnightAdvanceCents(salary)`
+
+### Pago por horas (limpieza / sin salario fijo)
+
+Empleados con `pay_by_hours = true` y `hourly_rate_cents` (precio/hora en onboarding). Marcan en tablet igual que el resto.
+
+Al crear/sincronizar la quincena:
+
+```text
+por cada día del período:
+  worked   = SUM(effective_sessions.worked_hours)
+  ot_day   = shift_ot_context(...).otHours   (umbral 30 min, límites 8/7/6)
+  ordinary_day = max(0, worked − ot_day)
+
+ordinary_hours = Σ ordinary_day
+base_cents     = round( ordinary_hours × hourly_rate_cents )
+ccss_cents     = exempt ? 0 : round( base_cents × 0.1083 )
+```
+
+Las extras siguen el flujo normal de aprobación (1.5× la misma tarifa). Migración: `202611170004_pay_by_hours.sql`.
 
 ### Jornada diaria (referencia)
 

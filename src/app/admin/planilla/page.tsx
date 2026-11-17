@@ -159,6 +159,10 @@ export default async function Page({searchParams}:{searchParams:Promise<{run?:st
        ot_status:i.ot_status??null,
        suggested_ot_hours:i.suggested_ot_hours==null?null:Number(i.suggested_ot_hours),
        payroll_ot_days:(i.payroll_ot_days??[]) as PayrollListItem["payroll_ot_days"],
+       pay_by_hours:!!(i as {pay_by_hours?:boolean}).pay_by_hours,
+       ordinary_hours:(i as {ordinary_hours?:number|null}).ordinary_hours==null
+        ?null
+        :Number((i as {ordinary_hours?:number|null}).ordinary_hours),
       }))}
       isDraft={!!isDraft}
       runId={selected.id}

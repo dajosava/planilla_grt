@@ -3,9 +3,10 @@ import {useActionState,useEffect,useMemo,useState} from "react";
 import {Search,X} from "lucide-react";
 import type {ActionState} from "@/components/action-form";
 import {DeleteEmployee} from "@/components/delete-employee";
+import {EmployeePayFields} from "@/components/employee-pay-fields";
 import {Badge} from "@/components/ui/badge";
 import {COMPANIES} from "@/lib/companies";
-import {cedula,dateOnly} from "@/lib/format";
+import {cedula,dateOnly,money} from "@/lib/format";
 import {deleteEmployee,toggleEmployee,updateEmployee} from "@/app/admin/actions";
 
 function normalizeQuery(value:string){
@@ -25,6 +26,8 @@ export type EmployeeListItem={
  hours_per_month:number|null;
  vacation_balance:number;
  exempt_from_ccss:boolean;
+ pay_by_hours:boolean;
+ hourly_rate_cents:number;
  active:boolean;
 };
 
@@ -70,6 +73,7 @@ function EditEmployeeModal({
        </p>
       </div>
       <div className="modal-head-actions">
+       {employee.pay_by_hours?<Badge tone="pending">Por horas</Badge>:null}
        <Badge tone={employee.active?"approved":"pending"}>{employee.active?"Activo":"Inactivo"}</Badge>
        <button
         type="button"
@@ -100,27 +104,15 @@ function EditEmployeeModal({
       <label>Fecha de ingreso
        <input name="hired_on" type="date" defaultValue={employee.hired_on} max={today} min="1950-01-01" required/>
       </label>
-      <label>Salario mensual (CRC)
-       <input name="salary" type="number" min="0" step="0.01" defaultValue={employee.monthly_salary_cents/100} required/>
-      </label>
-      <label>Horas ordinarias / mes
-       <input name="hours_month" type="number" min="1" max="400" step="0.01" defaultValue={Number(employee.hours_per_month??243.36)} required/>
-       <small className="muted">Default 243.36 (30.42×8). Define el valor hora.</small>
-      </label>
-      <label>Días de vacaciones disponibles
-       <input
-        type="text"
-        value={`${Number(employee.vacation_balance)} días`}
-        readOnly
-        tabIndex={-1}
-        aria-readonly="true"
-       />
-       <small className="muted">Solo consulta. Para acreditar o descontar usá “Ajustar saldo de vacaciones”.</small>
-      </label>
-      <label className="template-active-check" style={{alignSelf:"center"}}>
-       <input name="exempt_from_ccss" type="checkbox" defaultChecked={!!employee.exempt_from_ccss}/>
-       <span>Exento de CCSS</span>
-      </label>
+      <EmployeePayFields
+       payByHours={employee.pay_by_hours}
+       salaryDefault={employee.monthly_salary_cents/100}
+       hourlyDefault={employee.hourly_rate_cents/100}
+       hoursMonthDefault={Number(employee.hours_per_month??243.36)}
+       vacationMode="edit"
+       vacationBalance={employee.vacation_balance}
+       exemptDefault={employee.exempt_from_ccss}
+      />
       {(state.error||state.success)&&(
        <div className="form-footer" style={{justifyContent:"flex-start"}}>
         {state.error&&<p role="alert" className="alert error">{state.error}</p>}
@@ -226,9 +218,12 @@ export function EmployeesDirectory({
       >
        <span className="employee-dir-main">
         <strong>{e.full_name}</strong>
-        <small>· N.º {e.code}</small>
+        <small>· N.º {e.code}{e.pay_by_hours?` · ${money(e.hourly_rate_cents)}/h`:""}</small>
        </span>
-       <Badge tone={e.active?"approved":"pending"}>{e.active?"Activo":"Inactivo"}</Badge>
+       <span className="employee-dir-badges">
+        {e.pay_by_hours?<Badge tone="pending">Por horas</Badge>:null}
+        <Badge tone={e.active?"approved":"pending"}>{e.active?"Activo":"Inactivo"}</Badge>
+       </span>
       </button>
      ))}
     </div>

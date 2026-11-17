@@ -9,14 +9,24 @@ export const employeeSchema=z.object({
  full_name:z.string().trim().min(3).max(120),
  position:z.string().trim().min(2).max(80),
  department:companySchema,
- salary:z.string(),
+ salary:z.string().optional().default("0"),
+ hourly_rate:z.string().optional().default("0"),
  pin:z.string().regex(/^\d{4}$/),
- vacation_balance:z.coerce.number().min(0).max(365),
+ vacation_balance:z.coerce.number().min(0).max(365).optional().default(0),
  hired_on:dateSchema,
  cedula:cedulaSchema,
  email:emailSchema,
- hours_month:z.coerce.number().min(1).max(400).default(243.36),
+ hours_month:z.coerce.number().min(1).max(400).optional().default(243.36),
  exempt_from_ccss:z.coerce.boolean().default(false),
+ pay_by_hours:z.coerce.boolean().default(false),
+}).superRefine((v,ctx)=>{
+ if(v.pay_by_hours){
+  if(!v.hourly_rate||v.hourly_rate==="0"||!/^\d{1,9}(\.\d{1,2})?$/.test(v.hourly_rate)){
+   ctx.addIssue({code:"custom",message:"Indicá el precio por hora (CRC).",path:["hourly_rate"]});
+  }
+ }else if(!v.salary||!/^\d{1,9}(\.\d{1,2})?$/.test(v.salary)){
+  ctx.addIssue({code:"custom",message:"Indicá el salario mensual (CRC).",path:["salary"]});
+ }
 });
 export const punchSchema=z.object({
  code:z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{1,12}$/),

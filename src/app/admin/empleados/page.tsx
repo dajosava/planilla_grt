@@ -5,6 +5,7 @@ import {Heading,CollapsiblePanel,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
 import {EmployeeSelect} from "@/components/employee-select";
 import {EmployeesDirectory,type EmployeeListItem} from "@/components/employees-directory";
+import {EmployeePayFields} from "@/components/employee-pay-fields";
 import {COMPANIES,isCompany} from "@/lib/companies";
 import {createEmployee,resetPin,vacationBalance} from "../actions";
 
@@ -29,6 +30,8 @@ export default async function Page({searchParams}:{searchParams:Promise<{area?:s
   hours_per_month:e.hours_per_month==null?null:Number(e.hours_per_month),
   vacation_balance:Number(e.vacation_balance),
   exempt_from_ccss:!!e.exempt_from_ccss,
+  pay_by_hours:!!(e as {pay_by_hours?:boolean}).pay_by_hours,
+  hourly_rate_cents:Number((e as {hourly_rate_cents?:number}).hourly_rate_cents??0),
   active:!!e.active,
  }));
 
@@ -58,10 +61,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{area?:s
     <label>Sociedad / planilla<select name="department" defaultValue="Gasolinera">{COMPANIES.map(v=><option key={v}>{v}</option>)}</select></label>
     <label>Puesto<input name="position" required minLength={2} maxLength={80}/></label>
     <label>Fecha de ingreso<input name="hired_on" type="date" defaultValue={today} max={today} min="1950-01-01" required/></label>
-    <label>Salario mensual (CRC)<input name="salary" type="number" min="0" step="0.01" required/></label>
-    <label>Horas ordinarias / mes<input name="hours_month" type="number" min="1" max="400" step="0.01" defaultValue={243.36} required/></label>
-    <label className="checkbox"><input name="exempt_from_ccss" type="checkbox"/>Exento de CCSS</label>
-    <label>Saldo inicial de vacaciones (días)<input name="vacation_balance" type="number" min="0" max="365" step="0.01" defaultValue="0" required/></label>
+    <EmployeePayFields vacationMode="create"/>
     <label>PIN inicial (4 dígitos)<input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} autoComplete="new-password" required/></label>
    </ActionForm>
   </CollapsiblePanel>

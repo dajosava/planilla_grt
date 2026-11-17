@@ -1276,7 +1276,9 @@ button.photo-thumb{
 .employee-dir-row-compact .employee-dir-main small{
   flex:0 0 auto;opacity:.85;white-space:nowrap;
 }
-.employee-dir-row-compact .badge{margin-left:auto;flex:0 0 auto}
+.employee-dir-badges{display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex:0 0 auto}
+.employee-dir-row-compact .badge{margin-left:0;flex:0 0 auto}
+.employee-dir-row-compact .employee-dir-badges .badge:first-child{margin-left:auto}
 .employee-modal-footer{
   display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;
   margin-top:18px;padding-top:16px;border-top:1px solid var(--border);

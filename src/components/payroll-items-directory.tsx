@@ -33,6 +33,8 @@ export type PayrollListItem={
  ot_status:string|null;
  suggested_ot_hours:number|null;
  payroll_ot_days:PayrollOtDay[]|null;
+ pay_by_hours?:boolean;
+ ordinary_hours?:number|null;
 };
 
 function normalizeQuery(value:string){
@@ -98,11 +100,15 @@ function EditPayrollItemModal({
       <p className="eyebrow">{isDraft?"Extras y deducciones":"Detalle de nómina"}</p>
       <h2 id={`pay-edit-${item.id}`}>{item.employee_name}</h2>
       <p className="muted small" style={{margin:"4px 0 0"}}>
-       {item.employee_code} · Adelanto {money(item.base_cents)} · Valor hora {money(item.hourly_rate_cents??0)}
+       {item.employee_code}
+       {item.pay_by_hours
+        ?` · Por horas ${Number(item.ordinary_hours??0).toFixed(2)} h × ${money(item.hourly_rate_cents??0)} = ${money(item.base_cents)}`
+        :` · Adelanto ${money(item.base_cents)} · Valor hora ${money(item.hourly_rate_cents??0)}`}
        {item.exempt_from_ccss?" · Exento CCSS":""}
       </p>
      </div>
      <div className="modal-head-actions">
+      {item.pay_by_hours?<Badge tone="pending">Por horas</Badge>:null}
       <StatusBadge item={item}/>
       <button
        type="button"
@@ -305,12 +311,15 @@ export function PayrollItemsDirectory({
        >
         <span className="employee-dir-main">
          <strong>{i.employee_name}</strong>
-         <small>· N.º {i.employee_code}</small>
+         <small>· N.º {i.employee_code}{i.pay_by_hours?` · ${Number(i.ordinary_hours??0).toFixed(2)} h`:""}</small>
         </span>
         <span className="employee-dir-meta muted small payroll-dir-meta">
-         Extras {money(extras)} · Ded {money(otherDed)} · Neto {money(i.net_cents)}
+         {i.pay_by_hours?"Ordinario":"Extras"} {i.pay_by_hours?money(i.base_cents):money(extras)} · Ded {money(otherDed)} · Neto {money(i.net_cents)}
         </span>
-        <StatusBadge item={i}/>
+        <span className="employee-dir-badges">
+         {i.pay_by_hours?<Badge tone="pending">Por horas</Badge>:null}
+         <StatusBadge item={i}/>
+        </span>
        </button>
       );
      })}

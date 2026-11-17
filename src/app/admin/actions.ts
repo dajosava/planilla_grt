@@ -16,7 +16,38 @@ function dbError(error:{message:string;code?:string;details?:string}|null){
  if(error.code==="P0001"||error.code==="42883")throw new Error(error.message);
  throw new Error(error.message||"No se pudo guardar. Revisa los datos y los permisos.");
 }
-export async function createEmployee(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=employeeSchema.parse({...fields(form),exempt_from_ccss:form.get("exempt_from_ccss")==="on"});const {error}=await client.rpc("create_employee",{p_code:v.code,p_name:v.full_name,p_department:v.department,p_position:v.position,p_salary:crcToCents(v.salary),p_pin:v.pin,p_vacation:v.vacation_balance,p_hired_on:v.hired_on,p_cedula:v.cedula,p_email:v.email,p_hours_month:v.hours_month,p_exempt_ccss:v.exempt_from_ccss});dbError(error);revalidatePath("/admin");revalidatePath("/admin/empleados");return {success:"Empleado registrado. Entrega el código y PIN de forma privada."};}catch(e){return failure(e)}}
+export async function createEmployee(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const v=employeeSchema.parse({
+   ...fields(form),
+   exempt_from_ccss:form.get("exempt_from_ccss")==="on",
+   pay_by_hours:form.get("pay_by_hours")==="on",
+  });
+  const {error}=await client.rpc("create_employee",{
+   p_code:v.code,
+   p_name:v.full_name,
+   p_department:v.department,
+   p_position:v.position,
+   p_salary:v.pay_by_hours?0:crcToCents(v.salary||"0"),
+   p_pin:v.pin,
+   p_vacation:v.vacation_balance,
+   p_hired_on:v.hired_on,
+   p_cedula:v.cedula,
+   p_email:v.email,
+   p_hours_month:v.hours_month,
+   p_exempt_ccss:v.pay_by_hours?true:v.exempt_from_ccss,
+   p_pay_by_hours:v.pay_by_hours,
+   p_hourly_rate:v.pay_by_hours?crcToCents(v.hourly_rate||"0"):0,
+  });
+  dbError(error);
+  revalidatePath("/admin");
+  revalidatePath("/admin/empleados");
+  return {success:v.pay_by_hours
+   ?"Empleado por horas registrado. Puede marcar en tablet; se le paga por horas trabajadas."
+   :"Empleado registrado. Entrega el código y PIN de forma privada."};
+ }catch(e){return failure(e)}
+}
 export async function resetPin(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({employee_id:z.uuid(),pin:z.string().regex(/^\d{4}$/)}).parse(fields(form));const {error}=await client.rpc("set_employee_pin",{p_employee:v.employee_id,p_pin:v.pin});dbError(error);return {success:"PIN actualizado."}}catch(e){return failure(e)}}
 export async function deleteEmployee(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({id:z.uuid(),confirm_code:z.string().trim().min(1)}).parse(fields(form));const {error}=await client.rpc("delete_employee",{p_id:v.id,p_confirm_code:v.confirm_code});dbError(error);revalidatePath("/admin",'layout');return {success:"Empleado eliminado."}}catch(e){return failure(e)}}
 export async function toggleEmployee(form:FormData){const {client}=await requireRole("admin");const id=z.uuid().parse(form.get("id"));const {error}=await client.rpc("set_employee_active",{p_employee:id,p_active:form.get("active")==="true"});dbError(error);revalidatePath("/admin/empleados")}
@@ -397,4 +428,48 @@ export async function deleteAguinaldo(_:ActionState,form:FormData):Promise<Actio
  }catch(e){return failure(e)}
 }
 
-export async function updateEmployee(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({id:z.uuid(),full_name:z.string().trim().min(3).max(120),department:companySchema,position:z.string().trim().min(2).max(80),salary:z.string(),hired_on:dateSchema,cedula:cedulaSchema,email:emailSchema,hours_month:z.coerce.number().min(1).max(400).default(243.36),exempt_from_ccss:z.coerce.boolean().default(false)}).parse({...fields(form),exempt_from_ccss:form.get("exempt_from_ccss")==="on"});const {error}=await client.rpc("update_employee",{p_id:v.id,p_name:v.full_name,p_department:v.department,p_position:v.position,p_salary:crcToCents(v.salary),p_hired_on:v.hired_on,p_cedula:v.cedula,p_email:v.email,p_hours_month:v.hours_month,p_exempt_ccss:v.exempt_from_ccss});dbError(error);revalidatePath("/admin/empleados");return {success:"Datos actualizados. Las planillas existentes conservan su información histórica."}}catch(e){return failure(e)}}
+export async function updateEmployee(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const raw={...fields(form),exempt_from_ccss:form.get("exempt_from_ccss")==="on",pay_by_hours:form.get("pay_by_hours")==="on"};
+  const v=z.object({
+   id:z.uuid(),
+   full_name:z.string().trim().min(3).max(120),
+   department:companySchema,
+   position:z.string().trim().min(2).max(80),
+   salary:z.string().optional().default("0"),
+   hourly_rate:z.string().optional().default("0"),
+   hired_on:dateSchema,
+   cedula:cedulaSchema,
+   email:emailSchema,
+   hours_month:z.coerce.number().min(1).max(400).default(243.36),
+   exempt_from_ccss:z.coerce.boolean().default(false),
+   pay_by_hours:z.coerce.boolean().default(false),
+  }).superRefine((val,ctx)=>{
+   if(val.pay_by_hours){
+    if(!val.hourly_rate||val.hourly_rate==="0"||!/^\d{1,9}(\.\d{1,2})?$/.test(val.hourly_rate)){
+     ctx.addIssue({code:"custom",message:"Indicá el precio por hora (CRC).",path:["hourly_rate"]});
+    }
+   }else if(!val.salary||!/^\d{1,9}(\.\d{1,2})?$/.test(val.salary)){
+    ctx.addIssue({code:"custom",message:"Indicá el salario mensual (CRC).",path:["salary"]});
+   }
+  }).parse(raw);
+  const {error}=await client.rpc("update_employee",{
+   p_id:v.id,
+   p_name:v.full_name,
+   p_department:v.department,
+   p_position:v.position,
+   p_salary:v.pay_by_hours?0:crcToCents(v.salary||"0"),
+   p_hired_on:v.hired_on,
+   p_cedula:v.cedula,
+   p_email:v.email,
+   p_hours_month:v.hours_month,
+   p_exempt_ccss:v.pay_by_hours?true:v.exempt_from_ccss,
+   p_pay_by_hours:v.pay_by_hours,
+   p_hourly_rate:v.pay_by_hours?crcToCents(v.hourly_rate||"0"):0,
+  });
+  dbError(error);
+  revalidatePath("/admin/empleados");
+  return {success:"Datos actualizados. Las planillas existentes conservan su información histórica."};
+ }catch(e){return failure(e)}
+}
