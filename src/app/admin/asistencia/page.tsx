@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {requireRole} from "@/lib/auth";
-import {Heading,Panel,CollapsiblePanel,Table,Empty} from "@/components/admin-ui";
+import {Heading,CollapsiblePanel,Table,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
 import {AttendanceOtAlert,type AttendanceOtItem} from "@/components/attendance-ot-alert";
 import {AckAttendanceAlert} from "@/components/ack-attendance-alert";
@@ -147,7 +147,10 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    </section>
   )}
 
-  <Panel title={from===to?`Jornadas del ${from}`:`Jornadas del ${from} al ${to}`}>
+  <CollapsiblePanel
+   title={from===to?`Jornadas del ${from}`:`Jornadas del ${from} al ${to}`}
+   open
+  >
    {!rows.length?<Empty text="No hay jornadas en este rango."/>:(
     <Table headers={["Empleado","Fotos","Entrada","Salida","Jornada","Horas","Estado"]}>
      {rows.map(s=>{
@@ -226,7 +229,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
     </Table>
    )}
    {rows.length===500&&<p className="muted small">Se muestran las primeras 500 jornadas. Reduce el rango para ver el resto.</p>}
-  </Panel>
+  </CollapsiblePanel>
 
   <CollapsiblePanel title="Corregir una jornada">
    <p className="muted small">El ajuste deja un motivo y el usuario responsable. Para cambios posteriores, consulta el historial de auditoría.</p>
