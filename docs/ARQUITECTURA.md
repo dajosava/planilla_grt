@@ -216,7 +216,7 @@ flowchart LR
 - Eventos = evidencia original.
 - Sesiones = vista derivada (entrada / descansos / salida).
 - Online: hora de servidor. Offline: cola IndexedDB + `p_occurred_at` (ventana acotada). PIN con bcrypt; idempotencia por `requestId`.
-- Admin puede **ajustar** (`correct_session`) o **borrar** jornada / solo salida (`delete_attendance_session`, con motivo y `audit_log`; bloqueado si planilla cerrada).
+- Admin puede **ajustar** (`correct_session`, upsert), **registrar jornada faltante** (`create_manual_session`) o **borrar** jornada / solo salida (`delete_attendance_session`, con motivo y `audit_log`; bloqueado si planilla cerrada).
 - Jornadas CR (art. 135): Diurna / Mixta / Nocturna (`classify_shift_cr`) según marcación real; extras sobre límites **8 / 7 / 6 h** (umbral 30 min).
 - Detalle PWA/cola: `docs/pwa.md` §8.
 

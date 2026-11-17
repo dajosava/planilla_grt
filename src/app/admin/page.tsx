@@ -4,20 +4,13 @@ import {requireRole} from "@/lib/auth";
 import {Heading,Panel,Empty,Table} from "@/components/admin-ui";
 import {KpiCard} from "@/components/ui/kpi-card";
 import {Badge} from "@/components/ui/badge";
-import {dateTime,timeOnly} from "@/lib/format";
-
-function sameCalendarDayCR(a:string,b:string){
- const fmt=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Costa_Rica",year:"numeric",month:"2-digit",day:"2-digit"});
- return fmt.format(new Date(a))===fmt.format(new Date(b));
-}
+import {dateTime} from "@/lib/format";
 
 function jornadaLabel(startedAt:string,endedAt:string|null){
  if(!endedAt){
   return <>Entrada {dateTime(startedAt)} · <span className="text-danger">sin salida</span></>;
  }
- if(sameCalendarDayCR(startedAt,endedAt)){
-  return <>{timeOnly(startedAt)} → {timeOnly(endedAt)}</>;
- }
+ // Siempre fecha+hora: si solo se muestra la hora parece “de hoy”.
  return <>{dateTime(startedAt)} → {dateTime(endedAt)}</>;
 }
 

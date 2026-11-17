@@ -2,13 +2,15 @@ import Link from "next/link";
 import {requireRole} from "@/lib/auth";
 import {Heading,CollapsiblePanel,Table,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
+import {EmployeeSelect} from "@/components/employee-select";
 import {AttendanceOtAlert,type AttendanceOtItem} from "@/components/attendance-ot-alert";
 import {AckAttendanceAlert} from "@/components/ack-attendance-alert";
 import {Badge} from "@/components/ui/badge";
-import {correctSession,deleteAttendanceSession} from "../actions";
+import {createManualSession,deleteAttendanceSession} from "../actions";
 import {DeleteAttendance} from "@/components/delete-attendance";
 import {AttendancePhotoThumb} from "@/components/attendance-photo-thumb";
-import {dateTime,todayCR,labels} from "@/lib/format";
+import {CorrectSessionForm,type CorrectableSession} from "@/components/correct-session-form";
+import {dateTime,dateCR,todayCR,labels} from "@/lib/format";
 import {classifyShift,overtimeHours,type ShiftResult} from "@/lib/shift-cr";
 
 const MAX_OPEN_HOURS=12;
@@ -18,6 +20,12 @@ const addDays=(date:string,days:number)=>{const d=new Date(date+"T00:00:00Z");d.
 const startCR=(date:string)=>new Date(date+"T00:00:00-06:00").toISOString();
 const openHours=(start:string)=>(Date.now()-new Date(start).getTime())/3600000;
 const photoEager=(occurredAt:string,now:number)=>now-new Date(occurredAt).getTime()<PHOTO_EAGER_MS;
+/** Incluye jornadas que cruzan medianoche (ej. sale el 16 aunque entró el 15). */
+function overlapsRange(startedAt:string,endedAt:string|null,from:string,to:string){
+ const start=dateCR(startedAt);
+ const end=endedAt?dateCR(endedAt):start;
+ return end>=from&&start<=to;
+}
 
 export default async function Page({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
  const {client}=await requireRole("admin");
@@ -28,8 +36,17 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  if(from>to)[from,to]=[to,from];
  const employee=typeof params.empleado==="string"&&/^[0-9a-f-]{36}$/i.test(params.empleado)?params.empleado:"";
 
- let query=client.from("effective_sessions").select("*").gte("started_at",startCR(from)).lt("started_at",startCR(addDays(to,1))).order("started_at",{ascending:false}).limit(500);
- let eventsQuery=client.from("attendance_events").select("id,session_id,employee_id,kind,occurred_at,punch_photos(status)").gte("occurred_at",startCR(from)).lt("occurred_at",startCR(addDays(to,2))).order("occurred_at").limit(3000);
+ // Buffer −1 día: jornadas nocturnas que empiezan el día anterior y terminan en el rango.
+ let query=client.from("effective_sessions").select("*")
+  .gte("started_at",startCR(addDays(from,-1)))
+  .lt("started_at",startCR(addDays(to,1)))
+  .order("started_at",{ascending:false})
+  .limit(500);
+ let eventsQuery=client.from("attendance_events").select("id,session_id,employee_id,kind,occurred_at,punch_photos(status)")
+  .gte("occurred_at",startCR(addDays(from,-1)))
+  .lt("occurred_at",startCR(addDays(to,2)))
+  .order("occurred_at")
+  .limit(3000);
  if(employee){query=query.eq("employee_id",employee);eventsQuery=eventsQuery.eq("employee_id",employee)}
 
  const [sessions,open,emp,events,otRpc,acks]=await Promise.all([
@@ -59,9 +76,26 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const noPhoto=punches.filter(p=>p.photo==="missing"&&p.occurred_at<startCR(addDays(to,1))&&!ackedPhoto.has(p.id));
  const names=new Map(emp.data?.map(e=>[e.id,`${e.full_name} (${e.code})`]));
  const missingExit=(s:{ended_at:string|null;started_at:string})=>!s.ended_at&&(s.started_at<startCR(today)||openHours(s.started_at)>MAX_OPEN_HOURS);
- const alerts=(open.data??[]).filter(s=>missingExit(s)&&!ackedExit.has(s.id));
- const rows=sessions.data??[];
+ const alerts=(open.data??[]).filter(s=>missingExit(s)&&!ackedExit.has(s.id)&&(!employee||s.employee_id===employee));
+ const rows=(sessions.data??[]).filter(s=>overlapsRange(s.started_at,s.ended_at,from,to));
  const correctable=[...alerts,...rows.filter(r=>!alerts.some(a=>a.id===r.id))];
+ const correctableOptions:CorrectableSession[]=correctable.map(s=>{
+  const breakMin=Math.round(Number(s.break_seconds??0)/60);
+  const range=s.ended_at
+   ?`${dateTime(s.started_at)} → ${dateTime(s.ended_at)}`
+   :`${dateTime(s.started_at)} · sin salida`;
+  const flags=[
+   missingExit(s)?"⚠ Sin salida":"",
+   s.adjusted?"Ajustada":"",
+  ].filter(Boolean).join(" · ");
+  return {
+   id:s.id,
+   label:`${flags?flags+" · ":""}${names.get(s.employee_id)??"Empleado"} · ${range}`,
+   started_at:s.started_at,
+   ended_at:s.ended_at,
+   break_minutes:breakMin,
+  };
+ });
  const link=(desde:string,hasta:string)=>`/admin/asistencia?${new URLSearchParams({desde,hasta,...(employee?{empleado:employee}:{})})}`;
  const presets=[
   {label:"Hoy",from:today,to:today},
@@ -231,24 +265,32 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    {rows.length===500&&<p className="muted small">Se muestran las primeras 500 jornadas. Reduce el rango para ver el resto.</p>}
   </CollapsiblePanel>
 
-  <CollapsiblePanel title="Corregir una jornada">
-   <p className="muted small">El ajuste deja un motivo y el usuario responsable. Para cambios posteriores, consulta el historial de auditoría.</p>
-   <ActionForm action={correctSession}>
-    <label>Jornada
-     <select name="session_id" defaultValue="" required>
-      <option value="" disabled>Selecciona una jornada</option>
-      {correctable.map(s=>(
-       <option value={s.id} key={s.id}>
-        {missingExit(s)?"⚠ Sin salida · ":""}{names.get(s.employee_id)} · {dateTime(s.started_at)}
-       </option>
-      ))}
-     </select>
-    </label>
-    <label>Entrada correcta<input name="started_at" type="datetime-local" required/></label>
-    <label>Salida correcta<input name="ended_at" type="datetime-local" required/></label>
-    <label>Descanso total (minutos)<input name="break_minutes" type="number" defaultValue="0" min="0" max="1440" required/></label>
-    <label>Motivo<input name="reason" minLength={5} maxLength={500} required/></label>
-   </ActionForm>
+  <CollapsiblePanel title="Ajustes de jornada" open>
+   <div className="attendance-adjust-block">
+    <h3>Registrar jornada faltante</h3>
+    <p className="muted small">
+     Cuando no hubo marcación en la tablet. Queda como ajustada (sin fotos). Horario Costa Rica.
+    </p>
+    <ActionForm action={createManualSession} submit="Registrar jornada">
+     <EmployeeSelect employees={(emp.data??[]).map(e=>({id:e.id,full_name:e.full_name,code:e.code}))}/>
+     <label>Entrada<input name="started_at" type="datetime-local" required/></label>
+     <label>Salida<input name="ended_at" type="datetime-local" required/></label>
+     <label>Descanso total (minutos)
+      <input name="break_minutes" type="number" min={0} max={1440} defaultValue={0} required/>
+     </label>
+     <label>Motivo
+      <input name="reason" minLength={5} maxLength={500} required placeholder="No marcó en tablet · jornada 16–17 nov"/>
+     </label>
+    </ActionForm>
+   </div>
+   <div className="attendance-adjust-block">
+    <h3>Corregir una jornada existente</h3>
+    <p className="muted small">
+     Podés ajustar la misma jornada más de una vez. Al elegirla se cargan entrada/salida actuales (hora CR).
+     Las jornadas nocturnas se listan con ambas fechas (ej. 15/11 10:11 p. m. → 16/11 5:09 a. m.).
+    </p>
+    <CorrectSessionForm sessions={correctableOptions}/>
+   </div>
   </CollapsiblePanel>
  </>;
 }

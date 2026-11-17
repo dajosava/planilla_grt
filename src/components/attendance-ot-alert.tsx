@@ -98,6 +98,7 @@ export function AttendanceOtAlert({
  const allRefs=useMemo(()=>items.map(ackKey),[items]);
  const allSelected=allRefs.length>0&&allRefs.every(r=>selected.has(r));
  const selectedRefs=useMemo(()=>allRefs.filter(r=>selected.has(r)),[allRefs,selected]);
+ const clearSelection=useCallback(()=>setSelected(new Set()),[]);
 
  if(!items.length)return null;
 
@@ -111,7 +112,6 @@ export function AttendanceOtAlert({
    return next;
   });
  }
- const clearSelection=useCallback(()=>setSelected(new Set()),[]);
 
  return (
   <section className="panel attendance-alerts ot-alerts" role="alert">

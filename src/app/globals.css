@@ -1220,6 +1220,16 @@ tr.ot-row-selected td{background:rgba(61,214,140,.08)}
 .danger-solid{background:var(--danger);color:#FFFFFF}
 .attendance-alerts{border-color:rgba(255,107,107,.35);background:var(--danger-soft)}
 .attendance-alerts h2{color:var(--danger-text)}
+.attendance-adjust-block{
+  display:flex;flex-direction:column;gap:10px;
+  padding:14px 0;
+  border-top:1px solid var(--border);
+  min-width:0;
+}
+.attendance-adjust-block:first-child{padding-top:0;border-top:0}
+.attendance-adjust-block h3{
+  margin:0;font-size:14px;font-weight:700;color:var(--text);
+}
 .photo-thumbs{
   display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:8px;
   min-width:max-content;

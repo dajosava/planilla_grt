@@ -1,0 +1,58 @@
+-- Permite un segundo (o N) ajuste de la misma jornada:
+-- actualiza el ajuste existente en lugar de fallar por session_id unique.
+
+create or replace function public.correct_session(
+  p_session uuid,
+  p_start timestamptz,
+  p_end timestamptz,
+  p_break integer,
+  p_reason text
+) returns void
+ language plpgsql
+ security definer
+ set search_path=''
+as $$
+declare
+  s public.attendance_sessions;
+begin
+  if not public.is_admin() then
+    raise exception 'No autorizado';
+  end if;
+
+  select * into s from public.attendance_sessions where id=p_session for update;
+  if s.id is null then
+    raise exception 'Jornada no encontrada';
+  end if;
+
+  if exists(
+    select 1 from public.payroll_runs
+    where status='closed'
+      and (
+        (s.started_at at time zone 'America/Costa_Rica')::date between period_start and period_end
+        or (p_start at time zone 'America/Costa_Rica')::date between period_start and period_end
+      )
+  ) then
+    raise exception 'La jornada pertenece a una planilla cerrada';
+  end if;
+
+  insert into public.attendance_adjustments(session_id,started_at,ended_at,break_minutes,reason)
+  values(p_session,p_start,p_end,p_break,p_reason)
+  on conflict (session_id) do update set
+    started_at=excluded.started_at,
+    ended_at=excluded.ended_at,
+    break_minutes=excluded.break_minutes,
+    reason=excluded.reason,
+    created_by=auth.uid(),
+    created_at=now();
+
+  -- Las marcaciones originales (attendance_events) no cambian.
+  -- Si la jornada estaba abierta (o ya se había cerrado por un ajuste previo),
+  -- alineamos ended_at de la sesión con la salida corregida.
+  update public.attendance_sessions
+  set ended_at=p_end, break_started_at=null
+  where id=s.id;
+end;
+$$;
+
+revoke execute on function public.correct_session(uuid,timestamptz,timestamptz,integer,text) from public,anon;
+grant execute on function public.correct_session(uuid,timestamptz,timestamptz,integer,text) to authenticated;
