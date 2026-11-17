@@ -265,7 +265,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    {rows.length===500&&<p className="muted small">Se muestran las primeras 500 jornadas. Reduce el rango para ver el resto.</p>}
   </CollapsiblePanel>
 
-  <CollapsiblePanel title="Ajustes de jornada" open>
+  <CollapsiblePanel title="Ajustes de jornada">
    <div className="attendance-adjust-block">
     <h3>Registrar jornada faltante</h3>
     <p className="muted small">
