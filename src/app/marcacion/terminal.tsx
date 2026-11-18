@@ -2,7 +2,15 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 import {LogIn,LogOut,CircleCheck,CircleX,Camera,CameraOff,CloudOff,RefreshCw} from "lucide-react";
 import {punch} from "./actions";
-import {enqueuePunch,listQueuedPunches,markQueuedPunchFailed,queueStats,removeQueuedPunch,requeueFailedPunches} from "@/lib/offline-punches";
+import {
+ enqueuePunch,
+ listQueuedPunches,
+ markQueuedPunchFailed,
+ queueStats,
+ rememberPunchResult,
+ removeQueuedPunch,
+ requeueFailedPunches,
+} from "@/lib/offline-punches";
 
 const kinds=[{id:"entry",name:"Entrada",icon:LogIn},{id:"exit",name:"Salida",icon:LogOut}] as const;
 const PHOTO_W=480,PHOTO_H=360;
@@ -65,6 +73,7 @@ export function Kiosk(){
       photo:item.photo,
       occurredAt:item.occurredAt,
      });
+     await rememberPunchResult(item.code,item.kind,result);
      if(result.ok)await removeQueuedPunch(item.id);
      else if(result.error)await markQueuedPunchFailed(item.id,result.error);
      else break;
@@ -123,14 +132,20 @@ export function Kiosk(){
  useEffect(()=>{if(!open)return;const id=setTimeout(()=>setMessage({}),message.ok||message.queued?6000:10000);const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape")setMessage({})};window.addEventListener("keydown",onKey);return()=>{clearTimeout(id);window.removeEventListener("keydown",onKey)}},[open,message.ok,message.queued]);
 
  async function saveOffline(opts:{id:string;code:string;pin:string;kind:"entry"|"exit"|"break_start"|"break_end";photo:string|null;occurredAt:string;kindName?:string}){
-  await enqueuePunch({
-   id:opts.id,
-   code:opts.code,
-   pin:opts.pin,
-   kind:opts.kind,
-   photo:opts.photo,
-   occurredAt:opts.occurredAt,
-  });
+  try{
+   await enqueuePunch({
+    id:opts.id,
+    code:opts.code,
+    pin:opts.pin,
+    kind:opts.kind,
+    photo:opts.photo,
+    occurredAt:opts.occurredAt,
+   });
+  }catch(err){
+   const msg=err instanceof Error?err.message:"No se pudo guardar la marcación en este dispositivo. Reintenta.";
+   setMessage({error:msg});
+   return;
+  }
   await refreshQueue();
   setMessage({
    queued:true,
@@ -161,6 +176,7 @@ export function Kiosk(){
 
    try{
     const result=await punch({code,pin,kind:punchKind,requestId,photo});
+    await rememberPunchResult(code,punchKind,result);
     if(result.ok){
      setMessage({...result,kind:kindName,photoUrl:result.photo?shot:null});
      setCode("");setPin("");request.current=null;setKind("entry");

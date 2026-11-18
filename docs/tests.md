@@ -46,6 +46,7 @@ No hace falta Supabase cloud ni `.env`: las pruebas de base usan PGlite y aplica
 | `tests/pay-by-hours-payroll.test.ts` | Unit | Fórmulas de pago por horas (base, CCSS 0, OT 1.5×) |
 | `tests/employee-schema.test.ts` | Unit | Validación Zod `employeeSchema` (mensual vs por horas) |
 | `tests/employee-pay-fields.test.tsx` | Componente | UI `EmployeePayFields` (checkbox, campos ocultos, CCSS auto) |
+| `tests/offline-punches.test.ts` | Unit | Reglas offline: no doble entrada/salida en cola de tablet |
 | `tests/database.test.ts` | Integración DB | Migraciones, RLS, RPC (asistencia, planilla, ops, pago por horas) |
 
 ---
