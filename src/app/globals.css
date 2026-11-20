@@ -207,6 +207,19 @@ h3{font-size:1rem;margin:0;color:var(--text)}
 .attendance-toolbar-filters-below{
   justify-content:flex-start;margin:0 0 16px;
 }
+.attendance-loading-root{position:relative;min-height:280px}
+.attendance-filter-loading-overlay{
+  position:absolute;inset:0;z-index:30;
+  display:flex;align-items:flex-start;justify-content:center;
+  background:var(--bg-app);padding:8px 0 40px;
+  min-height:min(52vh,420px);
+}
+.attendance-loading-hidden{
+  visibility:hidden;height:0;overflow:hidden;pointer-events:none;
+}
+.attendance-filter-presets button.badge{
+  font:inherit;appearance:none;
+}
 .attendance-filter-presets{
   display:flex;flex-wrap:nowrap;align-items:center;gap:6px;margin:0;flex:0 0 auto;
 }

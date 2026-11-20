@@ -6,7 +6,7 @@ export default function ErrorPage({reset}:{reset:()=>void}){
    <div>
     <p className="eyebrow">Error</p>
     <h1>No se pudo cargar esta sección</h1>
-    <p className="muted">Comprueba la conexión y que las migraciones de Supabase estén aplicadas.</p>
+    <p className="muted">Comprobá la conexión. En Asistencia, rangos muy amplios pueden fallar: probá Hoy o Últimos 7 días y reintentá.</p>
    </div>
    <AlertTriangle style={{color:"var(--danger)"}} size={28} aria-hidden="true"/>
   </div>

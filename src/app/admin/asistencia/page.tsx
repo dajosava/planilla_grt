@@ -1,9 +1,9 @@
+import {Suspense} from "react";
 import Link from "next/link";
 import {requireRole} from "@/lib/auth";
 import {Heading,CollapsiblePanel,Panel,Table,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
 import {EmployeeSelect} from "@/components/employee-select";
-import {AttendanceOtAlert,type AttendanceOtItem} from "@/components/attendance-ot-alert";
 import {AckAttendanceAlert} from "@/components/ack-attendance-alert";
 import {Badge} from "@/components/ui/badge";
 import {createManualSession,deleteAttendanceSession} from "../actions";
@@ -13,14 +13,28 @@ import {CorrectSessionForm,type CorrectableSession} from "@/components/correct-s
 import {ScrollToSession} from "@/components/scroll-to-session";
 import {dateTime,dateCR,todayCR,labels} from "@/lib/format";
 import {classifyShift,overtimeHours,type ShiftResult} from "@/lib/shift-cr";
+import {AttendanceFilters} from "@/components/attendance-filters";
+import {AttendanceLoadingGate} from "@/components/attendance-loading-gate";
+import {OtAlertsSection} from "./ot-alerts-section";
+
+/** Evita 502/timeouts en hosting al pedir rangos muy amplios. */
+export const maxDuration=60;
 
 const MAX_OPEN_HOURS=12;
+const MAX_RANGE_DAYS=31;
 const PHOTO_EAGER_MS=24*60*60*1000;
+const SESSION_COLS="id,employee_id,started_at,ended_at,break_seconds,worked_hours,adjusted";
+const EVENT_COLS="id,session_id,employee_id,kind,occurred_at,punch_photos(status)";
+
 const isDate=(v:unknown):v is string=>typeof v==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v));
 const addDays=(date:string,days:number)=>{const d=new Date(date+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)};
 const startCR=(date:string)=>new Date(date+"T00:00:00-06:00").toISOString();
 const openHours=(start:string)=>(Date.now()-new Date(start).getTime())/3600000;
 const photoEager=(occurredAt:string,now:number)=>now-new Date(occurredAt).getTime()<PHOTO_EAGER_MS;
+const daysBetween=(a:string,b:string)=>{
+ const ms=Date.parse(b+"T00:00:00Z")-Date.parse(a+"T00:00:00Z");
+ return Math.floor(ms/86400000)+1;
+};
 /** Incluye jornadas que cruzan medianoche (ej. sale el 16 aunque entró el 15). */
 function overlapsRange(startedAt:string,endedAt:string|null,from:string,to:string){
  const start=dateCR(startedAt);
@@ -35,29 +49,36 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  let from=isDate(params.desde)?params.desde:today;
  let to=isDate(params.hasta)?params.hasta:today;
  if(from>to)[from,to]=[to,from];
+ let rangeClamped=false;
+ if(daysBetween(from,to)>MAX_RANGE_DAYS){
+  from=addDays(to,1-MAX_RANGE_DAYS);
+  rangeClamped=true;
+ }
  const employee=typeof params.empleado==="string"&&/^[0-9a-f-]{36}$/i.test(params.empleado)?params.empleado:"";
  const focusSession=typeof params.sesion==="string"&&/^[0-9a-f-]{36}$/i.test(params.sesion)?params.sesion:"";
  const tab=params.tab==="ajustes"?"ajustes":"jornadas";
 
  // Buffer −1 día: jornadas nocturnas que empiezan el día anterior y terminan en el rango.
- let query=client.from("effective_sessions").select("*")
+ let query=client.from("effective_sessions").select(SESSION_COLS)
   .gte("started_at",startCR(addDays(from,-1)))
   .lt("started_at",startCR(addDays(to,1)))
   .order("started_at",{ascending:false})
   .limit(500);
- let eventsQuery=client.from("attendance_events").select("id,session_id,employee_id,kind,occurred_at,punch_photos(status)")
+ let eventsQuery=client.from("attendance_events").select(EVENT_COLS)
   .gte("occurred_at",startCR(addDays(from,-1)))
   .lt("occurred_at",startCR(addDays(to,2)))
   .order("occurred_at")
   .limit(3000);
  if(employee){query=query.eq("employee_id",employee);eventsQuery=eventsQuery.eq("employee_id",employee)}
 
- const [sessions,open,emp,events,otRpc,acks]=await Promise.all([
+ const [sessions,open,emp,events,acks]=await Promise.all([
   query,
-  client.from("effective_sessions").select("*").is("ended_at",null).order("started_at"),
+  client.from("effective_sessions").select(SESSION_COLS)
+   .is("ended_at",null)
+   .order("started_at")
+   .limit(200),
   client.from("employees").select("id,code,full_name").order("full_name"),
   eventsQuery,
-  client.rpc("list_attendance_ot_alerts",{p_from:from,p_to:to}),
   client.from("attendance_alert_acks").select("kind,ref_id").in("kind",["missing_photo","missing_exit"]),
  ]);
  if(sessions.error||open.error||emp.error||events.error)throw new Error("No se pudo cargar la asistencia");
@@ -99,12 +120,6 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    break_minutes:breakMin,
   };
  });
- const qs=(extra:Record<string,string>={})=>{
-  const p=new URLSearchParams({desde:from,hasta:to,...(employee?{empleado:employee}:{}),...extra});
-  if(tab==="ajustes"&&!extra.tab)p.set("tab","ajustes");
-  return `/admin/asistencia?${p}`;
- };
- const link=(desde:string,hasta:string)=>qs({desde,hasta});
  const tabHref=(id:"jornadas"|"ajustes")=>{
   const p=new URLSearchParams({desde:from,hasta:to,...(employee?{empleado:employee}:{})});
   if(id==="ajustes")p.set("tab","ajustes");
@@ -117,15 +132,6 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   {label:"Este mes",from:today.slice(0,8)+"01",to:today},
  ];
 
- const otData=otRpc.data&&typeof otRpc.data==="object"?otRpc.data as {
-  items?:AttendanceOtItem[];people?:number;ot_hours?:number;
- }:null;
- let otItems=(otData?.items??[]) as AttendanceOtItem[];
- if(employee)otItems=otItems.filter(i=>i.employee_id===employee);
- const otPeople=employee
-  ?(otItems.length?1:0)
-  :Number(otData?.people??0);
- const otHoursTotal=otItems.reduce((s,i)=>s+Number(i.ot_hours||0),0);
  const photoNow=Date.now();
 
  return <>
@@ -135,10 +141,10 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    description="Revisa jornadas (diurna / mixta / nocturna según legislación CR). Las extras se calculan sobre 8h, 7h o 6h según el tipo de jornada."
    actions={
     <nav className="module-tabs" aria-label="Secciones de asistencia">
-     <Link href={tabHref("jornadas")} className={tab==="jornadas"?"active":""} aria-current={tab==="jornadas"?"page":undefined}>
+     <Link href={tabHref("jornadas")} prefetch={false} className={tab==="jornadas"?"active":""} aria-current={tab==="jornadas"?"page":undefined}>
       Jornadas
      </Link>
-     <Link href={tabHref("ajustes")} className={tab==="ajustes"?"active":""} aria-current={tab==="ajustes"?"page":undefined}>
+     <Link href={tabHref("ajustes")} prefetch={false} className={tab==="ajustes"?"active":""} aria-current={tab==="ajustes"?"page":undefined}>
       Ajustes de jornada
      </Link>
     </nav>
@@ -173,27 +179,26 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
      <CorrectSessionForm sessions={correctableOptions}/>
     </div>
    </Panel>
-  ):(<>
-  <div className="attendance-toolbar-filters attendance-toolbar-filters-below">
-   <div className="attendance-filter-presets" role="group" aria-label="Filtros rápidos">
-    {presets.map(p=>(
-     <Link key={p.label} href={link(p.from,p.to)} className={`badge${p.from===from&&p.to===to?" selected":""}`}>{p.label}</Link>
-    ))}
-   </div>
-   <form className="attendance-filters" method="get">
-    <label>Desde<input type="date" name="desde" defaultValue={from} max={today}/></label>
-    <label>Hasta<input type="date" name="hasta" defaultValue={to} max={today}/></label>
-    <label>Empleado
-     <select name="empleado" defaultValue={employee}>
-      <option value="">Todos</option>
-      {emp.data?.map(e=><option key={e.id} value={e.id}>{e.full_name} ({e.code})</option>)}
-     </select>
-    </label>
-    <button type="submit" className="secondary">Filtrar</button>
-   </form>
-  </div>
+  ):(
+  <AttendanceLoadingGate paramsKey={`${from}|${to}|${employee}|${focusSession}|${tab}`}>
+  <AttendanceFilters
+   presets={presets}
+   from={from}
+   to={to}
+   today={today}
+   employee={employee}
+   employees={(emp.data??[]).map(e=>({id:e.id,full_name:e.full_name,code:e.code}))}
+  />
 
-  <AttendanceOtAlert items={otItems} people={otPeople} otHours={otHoursTotal}/>
+  {rangeClamped?(
+   <p className="muted small" role="status">
+    El rango se limitó a los últimos {MAX_RANGE_DAYS} días ({from} → {to}) para que la página cargue sin errores.
+   </p>
+  ):null}
+
+  <Suspense fallback={<p className="muted small">Cargando alertas de horas extra…</p>}>
+   <OtAlertsSection from={from} to={to} employee={employee}/>
+  </Suspense>
 
   {alerts.length>0&&(
    <section className="panel attendance-alerts" role="alert">
@@ -215,15 +220,15 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
       return (
        <tr key={s.id} className={active?"alert-exit-row is-active":"alert-exit-row"}>
         <td>
-         <Link href={filterHref} className="alert-exit-filter-link">
+         <Link href={filterHref} prefetch={false} className="alert-exit-filter-link">
           <strong>{names.get(s.employee_id)}</strong>
          </Link>
         </td>
         <td>
-         <Link href={filterHref} className="alert-exit-filter-link">{dateTime(s.started_at)}</Link>
+         <Link href={filterHref} prefetch={false} className="alert-exit-filter-link">{dateTime(s.started_at)}</Link>
         </td>
         <td>
-         <Link href={filterHref} className="alert-exit-filter-link">
+         <Link href={filterHref} prefetch={false} className="alert-exit-filter-link">
           <span className="badge pending">{Math.floor(openHours(s.started_at))} h sin salida</span>
           <span className="muted small"> · Ver jornada</span>
          </Link>
@@ -267,6 +272,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
      {" "}
      <Link
       href={`/admin/asistencia?${new URLSearchParams({desde:today,hasta:today})}`}
+      prefetch={false}
       className="text-link"
       style={{marginTop:0}}
      >
@@ -357,6 +363,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    )}
    {rows.length===500&&<p className="muted small">Se muestran las primeras 500 jornadas. Reduce el rango para ver el resto.</p>}
   </CollapsiblePanel>
-  </>)}
+  </AttendanceLoadingGate>
+  )}
  </>;
 }
