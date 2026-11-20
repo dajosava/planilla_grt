@@ -1234,6 +1234,12 @@ tr.ot-row-selected td{background:rgba(61,214,140,.08)}
 .danger-solid{background:var(--danger);color:#FFFFFF}
 .attendance-alerts{border-color:rgba(255,107,107,.35);background:var(--danger-soft)}
 .attendance-alerts h2{color:var(--danger-text)}
+.alert-exit-filter-link{
+  display:block;color:inherit;text-decoration:none;min-height:100%;
+}
+.alert-exit-filter-link:hover{color:var(--green-400)}
+.alert-exit-row.is-active td{background:rgba(255,107,107,.12)}
+tr.session-focus td{background:rgba(255,107,107,.14)}
 .attendance-adjust-block{
   display:flex;flex-direction:column;gap:10px;
   padding:14px 0;

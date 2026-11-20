@@ -10,6 +10,7 @@ import {createManualSession,deleteAttendanceSession} from "../actions";
 import {DeleteAttendance} from "@/components/delete-attendance";
 import {AttendancePhotoThumb} from "@/components/attendance-photo-thumb";
 import {CorrectSessionForm,type CorrectableSession} from "@/components/correct-session-form";
+import {ScrollToSession} from "@/components/scroll-to-session";
 import {dateTime,dateCR,todayCR,labels} from "@/lib/format";
 import {classifyShift,overtimeHours,type ShiftResult} from "@/lib/shift-cr";
 
@@ -31,10 +32,11 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const {client}=await requireRole("admin");
  const params=await searchParams;
  const today=todayCR();
- let from=isDate(params.desde)?params.desde:addDays(today,-6);
+ let from=isDate(params.desde)?params.desde:today;
  let to=isDate(params.hasta)?params.hasta:today;
  if(from>to)[from,to]=[to,from];
  const employee=typeof params.empleado==="string"&&/^[0-9a-f-]{36}$/i.test(params.empleado)?params.empleado:"";
+ const focusSession=typeof params.sesion==="string"&&/^[0-9a-f-]{36}$/i.test(params.sesion)?params.sesion:"";
 
  // Buffer −1 día: jornadas nocturnas que empiezan el día anterior y terminan en el rango.
  let query=client.from("effective_sessions").select("*")
@@ -116,6 +118,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const photoNow=Date.now();
 
  return <>
+  {focusSession?<ScrollToSession sessionId={focusSession}/>:null}
   <Heading
    title="Asistencia"
    description="Revisa jornadas (diurna / mixta / nocturna según legislación CR). Las extras se calculan sobre 8h, 7h o 6h según el tipo de jornada."
@@ -146,18 +149,42 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   {alerts.length>0&&(
    <section className="panel attendance-alerts" role="alert">
     <h2>⚠ {alerts.length===1?"1 jornada sin marca de salida":`${alerts.length} jornadas sin marca de salida`}</h2>
-    <p className="muted small">Estas jornadas son de días anteriores o llevan más de {MAX_OPEN_HOURS} horas abiertas. Corrígelas abajo o aceptá el aviso si ya lo revisaste.</p>
+    <p className="muted small">
+     Estas jornadas son de días anteriores o llevan más de {MAX_OPEN_HOURS} horas abiertas.
+     Hacé clic en la fila para filtrar esa jornada; o aceptá el aviso si ya la revisaste.
+    </p>
     <Table headers={["Empleado","Entrada","Tiempo abierta","Acción"]}>
-     {alerts.map(s=>(
-      <tr key={s.id}>
-       <td><strong>{names.get(s.employee_id)}</strong></td>
-       <td>{dateTime(s.started_at)}</td>
-       <td><span className="badge danger">{Math.floor(openHours(s.started_at))} h sin salida</span></td>
-       <td className="alert-row-actions">
-        <AckAttendanceAlert kind="missing_exit" refId={s.id} label="Aceptar aviso"/>
-       </td>
-      </tr>
-     ))}
+     {alerts.map(s=>{
+      const day=dateCR(s.started_at);
+      const filterHref=`/admin/asistencia?${new URLSearchParams({
+       desde:day,
+       hasta:day,
+       empleado:s.employee_id,
+       sesion:s.id,
+      })}`;
+      const active=focusSession===s.id;
+      return (
+       <tr key={s.id} className={active?"alert-exit-row is-active":"alert-exit-row"}>
+        <td>
+         <Link href={filterHref} className="alert-exit-filter-link">
+          <strong>{names.get(s.employee_id)}</strong>
+         </Link>
+        </td>
+        <td>
+         <Link href={filterHref} className="alert-exit-filter-link">{dateTime(s.started_at)}</Link>
+        </td>
+        <td>
+         <Link href={filterHref} className="alert-exit-filter-link">
+          <span className="badge danger">{Math.floor(openHours(s.started_at))} h sin salida</span>
+          <span className="muted small"> · Ver jornada</span>
+         </Link>
+        </td>
+        <td className="alert-row-actions">
+         <AckAttendanceAlert kind="missing_exit" refId={s.id} label="Aceptar aviso"/>
+        </td>
+       </tr>
+      );
+     })}
     </Table>
    </section>
   )}
@@ -185,6 +212,19 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    title={from===to?`Jornadas del ${from}`:`Jornadas del ${from} al ${to}`}
    open
   >
+   {focusSession?(
+    <p className="muted small" style={{marginTop:0}}>
+     Filtrado desde aviso de salida faltante.
+     {" "}
+     <Link
+      href={`/admin/asistencia?${new URLSearchParams({desde:today,hasta:today})}`}
+      className="text-link"
+      style={{marginTop:0}}
+     >
+      Quitar filtro → Hoy
+     </Link>
+    </p>
+   ):null}
    {!rows.length?<Empty text="No hay jornadas en este rango."/>:(
     <Table headers={["Empleado","Fotos","Entrada","Salida","Jornada","Horas","Estado"]}>
      {rows.map(s=>{
@@ -194,7 +234,11 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
       const isOt=ot>0;
       const empLabel=names.get(s.employee_id)??"Empleado";
       return (
-       <tr key={s.id} className={isOt?"ot-row":undefined}>
+       <tr
+        key={s.id}
+        id={focusSession===s.id?`sesion-${s.id}`:undefined}
+        className={[isOt?"ot-row":"",focusSession===s.id?"session-focus":""].filter(Boolean).join(" ")||undefined}
+       >
         <td>{empLabel}</td>
         <td>
          <div className="photo-thumbs">
