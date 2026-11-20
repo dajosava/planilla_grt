@@ -172,7 +172,7 @@ export function AttendanceOtAlert({
         :i.alert_status==="needs_sync"?"Quincena creada · sincronizar"
         :statusLabel[i.alert_status]
        }>
-        <Badge tone={i.alert_status==="pending_approval"?"danger":"pending"}>
+        <Badge tone="pending">
          {statusLabel[i.alert_status]}
         </Badge>
        </td>

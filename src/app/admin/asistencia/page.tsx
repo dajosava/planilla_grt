@@ -175,7 +175,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
         </td>
         <td>
          <Link href={filterHref} className="alert-exit-filter-link">
-          <span className="badge danger">{Math.floor(openHours(s.started_at))} h sin salida</span>
+          <span className="badge pending">{Math.floor(openHours(s.started_at))} h sin salida</span>
           <span className="muted small"> · Ver jornada</span>
          </Link>
         </td>
@@ -280,7 +280,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
             />
            </>
           ):(
-           <span className={missingExit(s)?"text-danger":undefined}>Sin salida</span>
+           <span className={missingExit(s)?"text-attention":undefined}>Sin salida</span>
           )}
          </div>
         </td>
@@ -294,11 +294,11 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
         </td>
         <td>
          {hours===null?"—":hours.toFixed(2)}
-         {isOt&&<small className="text-danger"> · +{ot.toFixed(2)} h extra</small>}
+         {isOt&&<small className="text-attention"> · +{ot.toFixed(2)} h extra</small>}
         </td>
         <td>
-         {missingExit(s)?<Badge tone="danger">Falta salida</Badge>:
-          isOt?<Badge tone="danger">Con extras</Badge>:
+         {missingExit(s)?<Badge tone="pending">Falta salida</Badge>:
+          isOt?<Badge tone="pending">Con extras</Badge>:
           <Badge tone={s.adjusted?"approved":"pending"}>{s.adjusted?"Ajustada":s.ended_at?"Completa":"En turno"}</Badge>}
         </td>
        </tr>
