@@ -1,0 +1,21 @@
+import {ActionForm} from "@/components/action-form";
+import {login} from "@/app/login/actions";
+import {configured} from "@/lib/supabase/server";
+
+export default function LoginGate(){
+ return <main className="auth-center">
+  <div className="auth-form-box">
+   <img src="/logo-grt.png" alt="Gasolinera Río Tempisque" className="auth-logo" width={200} height={112} decoding="async"/>
+   <h1>Iniciar sesión</h1>
+   <p className="muted" style={{marginBottom:18}}>Acceso autorizado · administración o tablet.</p>
+   {configured()?(
+    <ActionForm action={login} submit="Ingresar">
+     <label>Correo<input name="email" type="email" autoComplete="username" required/></label>
+     <label>Contraseña<input name="password" type="password" autoComplete="current-password" required/></label>
+    </ActionForm>
+   ):(
+    <p className="alert error">Configura .env.local con tu URL y clave pública de Supabase.</p>
+   )}
+  </div>
+ </main>;
+}

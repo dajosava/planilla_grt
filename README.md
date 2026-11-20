@@ -59,7 +59,8 @@ npm run dev
 2. Crear usuarios Auth admin y kiosk; ejecutar `supabase/bootstrap.example.sql` con sus correos.
 3. Configurar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 4. Admin: generar tareas del día, revisar operaciones.
-5. Tablet: `/login` con kiosk → `/marcacion` o `/operaciones`.
+5. Login oculto: `/acceso-grt-7k2m` (o `ADMIN_LOGIN_PATH`) → admin a `/admin`, kiosk a `/marcacion`.
+6. La home pública solo muestra Marcación; `/login` redirige a `/`. Ver `docs/acceso-admin-oculto.md`.
 
 ## Flujo operativo diario (recomendado)
 

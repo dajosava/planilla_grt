@@ -18,5 +18,5 @@ export async function login(_:ActionState,form:FormData):Promise<ActionState>{
 export async function logout(){
  const client=await supabase();
  await client.auth.signOut();
- redirect("/login",RedirectType.replace);
+ redirect("/",RedirectType.replace);
 }

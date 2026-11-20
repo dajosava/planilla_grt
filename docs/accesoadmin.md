@@ -1,5 +1,7 @@
 # Acceso admin
 
+La home pública **no** enlaza al panel. El login está en una ruta secreta (default `/acceso-grt-7k2m`). Detalle: [`acceso-admin-oculto.md`](./acceso-admin-oculto.md).
+
 El panel `/admin` solo admite usuarios Auth cuyo perfil en `public.profiles` tenga `role = 'admin'`. Crear la cuenta en Supabase Auth **no alcanza**: hay que insertar o actualizar la fila en `profiles`.
 
 Roles posibles (`public.app_role`):
