@@ -99,7 +99,7 @@ src/
   proxy.ts              # Refresh de sesión Supabase
 supabase/migrations/    # Fuente de verdad del esquema y RPCs
 tests/                  # Vitest + PGlite
-docs/                   # Este documento y notas
+docs/                   # Arquitectura, planilla, PWA, manual operativo (PDF)
 ```
 
 ```mermaid
@@ -450,3 +450,5 @@ flowchart TB
 ---
 
 *Documento vivo. Si cambia un flujo crítico (marcación, cierre de planilla, roles), actualizá la sección correspondiente y el diagrama Mermaid asociado.*
+
+**Manual para operación diaria (no técnico):** [`manual-operativo.md`](./manual-operativo.md) · PDF [`manual-operativo.pdf`](./manual-operativo.pdf). Para regenerar el PDF: `npx md-to-pdf docs/manual-operativo.md --config-file docs/manual-operativo.pdf.js`.

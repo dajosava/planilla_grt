@@ -1,5 +1,6 @@
 "use server";
 import {redirect,RedirectType} from "next/navigation";
+import {adminLoginPath} from "@/lib/admin-access";
 import {supabase} from "@/lib/supabase/server";
 import type {ActionState} from "@/components/action-form";
 
@@ -18,5 +19,6 @@ export async function login(_:ActionState,form:FormData):Promise<ActionState>{
 export async function logout(){
  const client=await supabase();
  await client.auth.signOut();
- redirect("/",RedirectType.replace);
+ // Vuelve al login oculto (admin/kiosk), no a la home de marcación.
+ redirect(adminLoginPath(),RedirectType.replace);
 }

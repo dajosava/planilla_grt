@@ -29,4 +29,4 @@ Ahí entran cuentas **admin** (panel) y **kiosk** (tablet). Guardá la URL en fa
 | `/admin`… | Redirige a `/` (`requireRole`) |
 | `/<ADMIN_LOGIN_PATH>` | Formulario de login (rewrite en `src/proxy.ts`) |
 
-Tras cerrar sesión → `/`.
+Tras **Cerrar sesión** (admin o “Cambiar de cuenta”) → `/<ADMIN_LOGIN_PATH>` (formulario de login), no a la home de marcación.
