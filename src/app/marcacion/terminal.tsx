@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 import {LogIn,LogOut,CircleCheck,CircleX,Camera,CameraOff,CloudOff,RefreshCw} from "lucide-react";
 import {punch} from "./actions";
+import {probeReachability} from "@/lib/connectivity";
 import {
  enqueuePunch,
  listQueuedPunches,
@@ -14,6 +15,8 @@ import {
 
 const kinds=[{id:"entry",name:"Entrada",icon:LogIn},{id:"exit",name:"Salida",icon:LogOut}] as const;
 const PHOTO_W=480,PHOTO_H=360;
+/** Intervalo del ping real a /api/health (navigator.onLine no basta en tablets). */
+const HEARTBEAT_MS=15_000;
 const requestCamera=()=>navigator.mediaDevices?navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:640},height:{ideal:480}},audio:false}):Promise.reject(new Error("Cámara no soportada"));
 
 type PunchMsg={error?:string;ok?:boolean;at?:string;kind?:string;photoUrl?:string|null;queued?:boolean};
@@ -34,8 +37,15 @@ export function Kiosk(){
  const request=useRef<{key:string;id:string}|null>(null);
  const submitting=useRef(false);
  const flushing=useRef(false);
+ /** Salida real a internet (probe), no solo navigator.onLine. */
+ const reachable=useRef(typeof navigator!=="undefined"?navigator.onLine:true);
  const video=useRef<HTMLVideoElement>(null);
  const stream=useRef<MediaStream|null>(null);
+
+ const setReachable=useCallback((value:boolean)=>{
+  reachable.current=value;
+  setOnline(value);
+ },[]);
 
  async function attach(s:MediaStream){stream.current=s;if(video.current){video.current.srcObject=s;await video.current.play();}}
  async function startCamera(){
@@ -56,14 +66,14 @@ export function Kiosk(){
  },[]);
 
  const flushQueue=useCallback(async()=>{
-  if(typeof navigator!=="undefined"&&!navigator.onLine)return;
+  if(!reachable.current)return;
   if(flushing.current)return;
   flushing.current=true;
   setSyncing(true);
   try{
    const items=(await listQueuedPunches()).filter(p=>p.status==="pending");
    for(const item of items){
-    if(!navigator.onLine)break;
+    if(!reachable.current)break;
     try{
      const result=await punch({
       code:item.code,
@@ -78,6 +88,7 @@ export function Kiosk(){
      else if(result.error)await markQueuedPunchFailed(item.id,result.error);
      else break;
     }catch{
+     setReachable(false);
      break;
     }
    }
@@ -87,10 +98,19 @@ export function Kiosk(){
    setSyncing(false);
    await refreshQueue();
   }
- },[refreshQueue]);
+ },[refreshQueue,setReachable]);
+
+ const checkConnectivity=useCallback(async(opts:{flushIfOnline?:boolean}={})=>{
+  const ok=await probeReachability();
+  setReachable(ok);
+  if(ok&&opts.flushIfOnline!==false)await flushQueue();
+  return ok;
+ },[flushQueue,setReachable]);
 
  async function retryFailed(){
-  if(!navigator.onLine||syncing)return;
+  if(syncing)return;
+  const ok=await checkConnectivity({flushIfOnline:false});
+  if(!ok)return;
   await requeueFailedPunches();
   await refreshQueue();
   await flushQueue();
@@ -111,23 +131,29 @@ export function Kiosk(){
  },[]);
 
  useEffect(()=>{
-  setOnline(navigator.onLine);
-  const onOnline=()=>{setOnline(true);void flushQueue();};
-  const onOffline=()=>setOnline(false);
-  const onVis=()=>{if(document.visibilityState==="visible")void flushQueue();};
+  setReachable(navigator.onLine);
+  const onOnline=()=>{
+   // Optimista: el heartbeat confirma en ≤15 s si aún no hay salida real.
+   setReachable(true);
+   void flushQueue();
+  };
+  const onOffline=()=>setReachable(false);
+  const onVis=()=>{
+   if(document.visibilityState==="visible")void checkConnectivity();
+  };
   window.addEventListener("online",onOnline);
   window.addEventListener("offline",onOffline);
   document.addEventListener("visibilitychange",onVis);
   void refreshQueue();
-  void flushQueue();
-  const poll=setInterval(()=>{if(navigator.onLine)void flushQueue();},30_000);
+  void checkConnectivity();
+  const beat=setInterval(()=>{void checkConnectivity();},HEARTBEAT_MS);
   return()=>{
    window.removeEventListener("online",onOnline);
    window.removeEventListener("offline",onOffline);
    document.removeEventListener("visibilitychange",onVis);
-   clearInterval(poll);
+   clearInterval(beat);
   };
- },[flushQueue,refreshQueue]);
+ },[checkConnectivity,flushQueue,refreshQueue,setReachable]);
 
  useEffect(()=>{if(!open)return;const id=setTimeout(()=>setMessage({}),message.ok||message.queued?6000:10000);const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape")setMessage({})};window.addEventListener("keydown",onKey);return()=>{clearTimeout(id);window.removeEventListener("keydown",onKey)}},[open,message.ok,message.queued]);
 
@@ -169,7 +195,7 @@ export function Kiosk(){
    const shot=await startCamera()?capture():null;
    const photo=shot?.split(",")[1]??null;
 
-   if(!navigator.onLine){
+   if(!reachable.current){
     await saveOffline({id:requestId,code,pin,kind:punchKind,photo,occurredAt,kindName});
     return;
    }
@@ -178,6 +204,7 @@ export function Kiosk(){
     const result=await punch({code,pin,kind:punchKind,requestId,photo});
     await rememberPunchResult(code,punchKind,result);
     if(result.ok){
+     setReachable(true);
      setMessage({...result,kind:kindName,photoUrl:result.photo?shot:null});
      setCode("");setPin("");request.current=null;setKind("entry");
      void flushQueue();
@@ -185,6 +212,7 @@ export function Kiosk(){
      setMessage({error:result.error??"No se registró la marca."});
     }
    }catch{
+    setReachable(false);
     await saveOffline({id:requestId,code,pin,kind:punchKind,photo,occurredAt,kindName});
    }
   }catch{

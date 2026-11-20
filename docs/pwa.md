@@ -315,12 +315,15 @@ sequenceDiagram
 
 ### Cola offline (tablet)
 
+Documentación ampliada: [`docs/marcacion-offline.md`](./marcacion-offline.md).
+
 | Pieza | Detalle |
 |---|---|
 | Almacén | IndexedDB `grt-kiosk` / store `punch_queue` (`src/lib/offline-punches.ts`) |
-| Cuándo encola | `navigator.onLine === false` o excepción al llamar `punch` |
+| Cuándo encola | Probe de red falla / no alcanzable, o excepción al llamar `punch` |
 | Hora | `occurredAt` de la tablet; RPC acepta `p_occurred_at` (máx. 2 min futuro / 72 h pasado) |
-| Sync | Eventos `online`, `visibilitychange`, poll 30 s; orden FIFO |
+| Sync | Heartbeat `GET /api/health` cada 15 s + eventos `online`/`visibilitychange`; orden FIFO |
+| Conectividad | `src/lib/connectivity.ts` — no confiar solo en `navigator.onLine` (Wi‑Fi “congelado” en tablets) |
 | Errores de negocio | Quedan `failed` (no reintentan solos; botón Reintentar) |
 | Migración | `supabase/migrations/202611140001_offline_punch.sql` |
 
@@ -337,8 +340,10 @@ src/app/sw.ts                       Lógica del service worker
 src/app/serwist/[path]/route.ts     Sirve /serwist/sw.js
 src/app/~offline/page.tsx           UI offline
 src/app/marcacion/layout.tsx        Viewport + KioskLock
-src/app/marcacion/terminal.tsx      UI kiosco + cola offline
+src/app/marcacion/terminal.tsx      UI kiosco + cola offline + heartbeat
 src/app/marcacion/actions.ts        Server Action punch
+src/app/api/health/route.ts         Ping de conectividad real
+src/lib/connectivity.ts             probeReachability()
 src/lib/offline-punches.ts          IndexedDB cola de marcas
 src/app/operaciones/layout.tsx      Viewport + KioskLock
 src/components/kiosk-lock.tsx       Gestos + trampa historial
@@ -386,7 +391,8 @@ Tras un deploy:
 - [ ] Login con usuario **kiosk**
 - [ ] Permiso de **cámara** concedido
 - [ ] Migración `202611140001_offline_punch` aplicada en Supabase
-- [ ] Probar marca con modo avión → banner cola → volver red → sync
+- [ ] Probar marca con modo avión → banner cola → volver red → sync (sin apagar/encender Wi‑Fi; heartbeat ≤15 s)
+- [ ] Tras deploy: recargar marcación una vez (no hace falta reinstalar la PWA)
 - [ ] Acceso directo a Marcación (opcional)
 - [ ] App pinning activado
 - [ ] Wi‑Fi estable (sin red no hay marca)

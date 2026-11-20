@@ -47,6 +47,7 @@ No hace falta Supabase cloud ni `.env`: las pruebas de base usan PGlite y aplica
 | `tests/employee-schema.test.ts` | Unit | Validación Zod `employeeSchema` (mensual vs por horas) |
 | `tests/employee-pay-fields.test.tsx` | Componente | UI `EmployeePayFields` (checkbox, campos ocultos, CCSS auto) |
 | `tests/offline-punches.test.ts` | Unit | Reglas offline: no doble entrada/salida en cola de tablet |
+| `tests/connectivity.test.ts` | Unit | Probe `/api/health` (ok, error HTTP, red caída, timeout) |
 | `tests/database.test.ts` | Integración DB | Migraciones, RLS, RPC (asistencia, planilla, ops, pago por horas) |
 
 ---
@@ -86,6 +87,16 @@ No hace falta Supabase cloud ni `.env`: las pruebas de base usan PGlite y aplica
 - Modo mensual: muestra salario, horas/mes, vacaciones y checkbox CCSS.
 - Al marcar **Pago por horas**: muestra precio/hora; oculta salario, horas/mes y vacaciones; CCSS automático (hidden `exempt_from_ccss=on`).
 - Edición por horas: no muestra saldo de vacaciones.
+
+### `offline-punches.test.ts` — Cola tablet
+
+- No segunda entrada / salida inválida según estado abierto + pendientes.
+- Simulación FIFO por `occurredAt`. Ver también `docs/marcacion-offline.md`.
+
+### `connectivity.test.ts` — Heartbeat de red
+
+- `probeReachability`: OK 200, HTTP error, `Failed to fetch`, abort por timeout.
+- Usado por `/marcacion` cada 15 s contra `/api/health`.
 
 ### `database.test.ts` — Postgres (PGlite)
 
@@ -128,7 +139,7 @@ Aplica todas las migraciones y prueba RPC/RLS como admin / kiosk / sin rol.
 
 - E2E en navegador real (Playwright): alta en `/admin/empleados`, marca en tablet, quincena en UI.
 - Server Actions de Next (`createEmployee` / `updateEmployee`) con FormData real (sí se prueba el schema y el RPC).
-- Sync offline IndexedDB de la tablet.
+- E2E del heartbeat + flush IndexedDB en tablet real (sí hay unit de `probeReachability` y reglas de cola).
 
 ## Convenciones al agregar tests
 
