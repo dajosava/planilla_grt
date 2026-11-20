@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {requireRole} from "@/lib/auth";
-import {Heading,CollapsiblePanel,Table,Empty} from "@/components/admin-ui";
+import {Heading,CollapsiblePanel,Panel,Table,Empty} from "@/components/admin-ui";
 import {ActionForm} from "@/components/action-form";
 import {EmployeeSelect} from "@/components/employee-select";
 import {AttendanceOtAlert,type AttendanceOtItem} from "@/components/attendance-ot-alert";
@@ -37,6 +37,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  if(from>to)[from,to]=[to,from];
  const employee=typeof params.empleado==="string"&&/^[0-9a-f-]{36}$/i.test(params.empleado)?params.empleado:"";
  const focusSession=typeof params.sesion==="string"&&/^[0-9a-f-]{36}$/i.test(params.sesion)?params.sesion:"";
+ const tab=params.tab==="ajustes"?"ajustes":"jornadas";
 
  // Buffer −1 día: jornadas nocturnas que empiezan el día anterior y terminan en el rango.
  let query=client.from("effective_sessions").select("*")
@@ -98,7 +99,17 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    break_minutes:breakMin,
   };
  });
- const link=(desde:string,hasta:string)=>`/admin/asistencia?${new URLSearchParams({desde,hasta,...(employee?{empleado:employee}:{})})}`;
+ const qs=(extra:Record<string,string>={})=>{
+  const p=new URLSearchParams({desde:from,hasta:to,...(employee?{empleado:employee}:{}),...extra});
+  if(tab==="ajustes"&&!extra.tab)p.set("tab","ajustes");
+  return `/admin/asistencia?${p}`;
+ };
+ const link=(desde:string,hasta:string)=>qs({desde,hasta});
+ const tabHref=(id:"jornadas"|"ajustes")=>{
+  const p=new URLSearchParams({desde:from,hasta:to,...(employee?{empleado:employee}:{})});
+  if(id==="ajustes")p.set("tab","ajustes");
+  return `/admin/asistencia?${p}`;
+ };
  const presets=[
   {label:"Hoy",from:today,to:today},
   {label:"Ayer",from:addDays(today,-1),to:addDays(today,-1)},
@@ -118,31 +129,69 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const photoNow=Date.now();
 
  return <>
-  {focusSession?<ScrollToSession sessionId={focusSession}/>:null}
+  {tab==="jornadas"&&focusSession?<ScrollToSession sessionId={focusSession}/>:null}
   <Heading
    title="Asistencia"
    description="Revisa jornadas (diurna / mixta / nocturna según legislación CR). Las extras se calculan sobre 8h, 7h o 6h según el tipo de jornada."
    actions={
-    <div className="attendance-toolbar-filters">
-     <div className="attendance-filter-presets" role="group" aria-label="Filtros rápidos">
-      {presets.map(p=>(
-       <Link key={p.label} href={link(p.from,p.to)} className={`badge${p.from===from&&p.to===to?" selected":""}`}>{p.label}</Link>
-      ))}
-     </div>
-     <form className="attendance-filters" method="get">
-      <label>Desde<input type="date" name="desde" defaultValue={from} max={today}/></label>
-      <label>Hasta<input type="date" name="hasta" defaultValue={to} max={today}/></label>
-      <label>Empleado
-       <select name="empleado" defaultValue={employee}>
-        <option value="">Todos</option>
-        {emp.data?.map(e=><option key={e.id} value={e.id}>{e.full_name} ({e.code})</option>)}
-       </select>
-      </label>
-      <button type="submit" className="secondary">Filtrar</button>
-     </form>
-    </div>
+    <nav className="module-tabs" aria-label="Secciones de asistencia">
+     <Link href={tabHref("jornadas")} className={tab==="jornadas"?"active":""} aria-current={tab==="jornadas"?"page":undefined}>
+      Jornadas
+     </Link>
+     <Link href={tabHref("ajustes")} className={tab==="ajustes"?"active":""} aria-current={tab==="ajustes"?"page":undefined}>
+      Ajustes de jornada
+     </Link>
+    </nav>
    }
   />
+
+  {tab==="ajustes"?(
+   <Panel title="Ajustes de jornada">
+    <div className="attendance-adjust-block" style={{borderTop:"none",paddingTop:0}}>
+     <h3>Registrar jornada faltante</h3>
+     <p className="muted small">
+      Cuando no hubo marcación en la tablet. Queda como ajustada (sin fotos). Horario Costa Rica.
+     </p>
+     <ActionForm action={createManualSession} submit="Registrar jornada">
+      <EmployeeSelect employees={(emp.data??[]).map(e=>({id:e.id,full_name:e.full_name,code:e.code}))}/>
+      <label>Entrada<input name="started_at" type="datetime-local" required/></label>
+      <label>Salida<input name="ended_at" type="datetime-local" required/></label>
+      <label>Descanso total (minutos)
+       <input name="break_minutes" type="number" min={0} max={1440} defaultValue={0} required/>
+      </label>
+      <label>Motivo
+       <input name="reason" minLength={5} maxLength={500} required placeholder="No marcó en tablet · jornada 16–17 nov"/>
+      </label>
+     </ActionForm>
+    </div>
+    <div className="attendance-adjust-block">
+     <h3>Corregir una jornada existente</h3>
+     <p className="muted small">
+      Podés ajustar la misma jornada más de una vez. Al elegirla se cargan entrada/salida actuales (hora CR).
+      Las jornadas nocturnas se listan con ambas fechas (ej. 15/11 10:11 p. m. → 16/11 5:09 a. m.).
+     </p>
+     <CorrectSessionForm sessions={correctableOptions}/>
+    </div>
+   </Panel>
+  ):(<>
+  <div className="attendance-toolbar-filters attendance-toolbar-filters-below">
+   <div className="attendance-filter-presets" role="group" aria-label="Filtros rápidos">
+    {presets.map(p=>(
+     <Link key={p.label} href={link(p.from,p.to)} className={`badge${p.from===from&&p.to===to?" selected":""}`}>{p.label}</Link>
+    ))}
+   </div>
+   <form className="attendance-filters" method="get">
+    <label>Desde<input type="date" name="desde" defaultValue={from} max={today}/></label>
+    <label>Hasta<input type="date" name="hasta" defaultValue={to} max={today}/></label>
+    <label>Empleado
+     <select name="empleado" defaultValue={employee}>
+      <option value="">Todos</option>
+      {emp.data?.map(e=><option key={e.id} value={e.id}>{e.full_name} ({e.code})</option>)}
+     </select>
+    </label>
+    <button type="submit" className="secondary">Filtrar</button>
+   </form>
+  </div>
 
   <AttendanceOtAlert items={otItems} people={otPeople} otHours={otHoursTotal}/>
 
@@ -308,33 +357,6 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    )}
    {rows.length===500&&<p className="muted small">Se muestran las primeras 500 jornadas. Reduce el rango para ver el resto.</p>}
   </CollapsiblePanel>
-
-  <CollapsiblePanel title="Ajustes de jornada">
-   <div className="attendance-adjust-block">
-    <h3>Registrar jornada faltante</h3>
-    <p className="muted small">
-     Cuando no hubo marcación en la tablet. Queda como ajustada (sin fotos). Horario Costa Rica.
-    </p>
-    <ActionForm action={createManualSession} submit="Registrar jornada">
-     <EmployeeSelect employees={(emp.data??[]).map(e=>({id:e.id,full_name:e.full_name,code:e.code}))}/>
-     <label>Entrada<input name="started_at" type="datetime-local" required/></label>
-     <label>Salida<input name="ended_at" type="datetime-local" required/></label>
-     <label>Descanso total (minutos)
-      <input name="break_minutes" type="number" min={0} max={1440} defaultValue={0} required/>
-     </label>
-     <label>Motivo
-      <input name="reason" minLength={5} maxLength={500} required placeholder="No marcó en tablet · jornada 16–17 nov"/>
-     </label>
-    </ActionForm>
-   </div>
-   <div className="attendance-adjust-block">
-    <h3>Corregir una jornada existente</h3>
-    <p className="muted small">
-     Podés ajustar la misma jornada más de una vez. Al elegirla se cargan entrada/salida actuales (hora CR).
-     Las jornadas nocturnas se listan con ambas fechas (ej. 15/11 10:11 p. m. → 16/11 5:09 a. m.).
-    </p>
-    <CorrectSessionForm sessions={correctableOptions}/>
-   </div>
-  </CollapsiblePanel>
+  </>)}
  </>;
 }

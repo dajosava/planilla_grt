@@ -216,10 +216,12 @@ export function EmployeesDirectory({
        className="employee-dir-row template-dir-row employee-dir-row-compact"
        onClick={()=>setOpenId(e.id)}
       >
+       <span className="employee-dir-code muted small">N.º {e.code}</span>
        <span className="employee-dir-main">
         <strong>{e.full_name}</strong>
-        <small>· N.º {e.code}{e.pay_by_hours?` · ${money(e.hourly_rate_cents)}/h`:""}</small>
+        <small>{e.pay_by_hours?` · ${money(e.hourly_rate_cents)}/h`:""}</small>
        </span>
+       <span className="employee-dir-dept muted small">{e.department}</span>
        <span className="employee-dir-badges">
         {e.pay_by_hours?<Badge tone="pending">Por horas</Badge>:null}
         <Badge tone={e.active?"approved":"pending"}>{e.active?"Activo":"Inactivo"}</Badge>
