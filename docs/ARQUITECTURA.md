@@ -276,7 +276,7 @@ flowchart TB
 | **Validation at boundary** | Zod en `lib/schemas.ts` |
 | **Snapshot** | `payroll_items` al crear corrida |
 | **Colocation por feature** | Rutas `/admin/planilla`, `/marcacion`… |
-| **Lista → Modal** | empleados, plantillas, planilla, recordatorios |
+| **Lista → Modal** | empleados, plantillas, planilla, recordatorios, **vista previa de comprobantes** (`comprobantes-preview`) |
 | **Presentational UI kit** | `admin-ui`, `kpi-card`, `badge`, shell |
 
 ---
@@ -429,7 +429,7 @@ flowchart TB
   Admin --> Ope["operaciones"]
   Admin --> Inc["incidentes"]
   Admin --> Rec["recordatorios"]
-  Pla --> Rep["planilla/[id]/reporte"]
+  Pla --> Rep["planilla/[id]/reporte<br/>lista → modal comprobante"]
   Pla --> Agu["planilla/aguinaldo"]
   Pla --> His["planilla/historial"]
   Ope --> Plant["operaciones/plantillas"]

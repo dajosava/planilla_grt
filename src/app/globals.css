@@ -1391,6 +1391,22 @@ button.photo-thumb{
 .pre-wrap{white-space:pre-wrap}
 .payslip{border-top:1px solid var(--border);margin-top:30px;padding-top:25px}
 .comprobante-stack{display:flex;flex-direction:column;gap:28px}
+.print-only{display:none!important}
+.comprobante-row-click{cursor:pointer}
+.comprobante-row-click:hover td{background:rgba(14,124,74,.12)}
+.comprobante-row-click:focus-visible{outline:2px solid var(--green-400);outline-offset:-2px}
+.comprobante-modal-backdrop{align-items:flex-start;overflow:auto;padding:24px 16px}
+.comprobante-modal{
+  width:min(920px,100%);margin:auto;display:flex;flex-direction:column;gap:12px;
+  max-height:none;
+}
+.comprobante-modal-bar{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;
+}
+.comprobante-modal-heading{margin:0;font-size:15px;font-weight:700;color:var(--text)}
+.comprobante-modal-close{display:inline-flex;align-items:center;gap:6px}
+.comprobante-modal-body{overflow:auto}
 .comprobante{
   background:#FFFFFF;color:#111111;border:2px solid #111111;border-radius:0;
   padding:22px 24px 20px;max-width:900px;margin:0 auto;width:100%;
@@ -1476,7 +1492,9 @@ button.photo-thumb{
   .content{padding:0;max-width:none}
   button,.button{display:none}
   .report{background:white;padding:0;color:black}
+  .print-only{display:flex!important}
   .comprobante-stack{gap:0}
+  .comprobante-modal-backdrop{display:none!important}
   .comprobante{
     border-color:#000;max-width:none;margin:0 0 12mm;page-break-after:always;break-after:page;
     box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;

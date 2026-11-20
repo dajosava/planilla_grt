@@ -22,7 +22,9 @@ Implementación de referencia: `src/lib/payroll.ts` + `supabase/migrations/20261
 | UI asistencia | `src/app/admin/asistencia/page.tsx` | Jornada + extras por sesión |
 | Alertas OT | `src/components/attendance-ot-alert.tsx` | Avisos y aceptación en lote |
 | Empleados | `src/app/admin/empleados/page.tsx` | Horas/mes + exento CCSS |
-| Reporte HTML | `src/app/admin/planilla/[id]/reporte/page.tsx` | Comprobante cerrado |
+| Reporte HTML | `src/app/admin/planilla/[id]/reporte/page.tsx` | Vista previa / reporte de comprobantes |
+| UI modal comprobantes | `src/components/comprobantes-preview.tsx` | Lista clicable → modal por empleado |
+| Plantilla colilla | `src/components/comprobante-pago.tsx` | Layout ingresos / deducciones / neto |
 | CSV | `src/app/api/reportes/[id]/route.ts` | Export desglosado |
 | Spec Excel | `xls_actual/LOGICA-PLANILLA.md` | Reglas de negocio originales |
 
@@ -374,12 +376,37 @@ Con 2 h extra: monto extra = `2 × 1725 × 1.5` = **₡5,175**.
 
 ---
 
-## 9. Cómo verificar
+## 9. Vista previa de comprobantes (UI)
+
+Ruta: `/admin/planilla/[id]/reporte` (borrador o cerrada).
+
+### Comportamiento en pantalla
+
+1. Se muestra el **resumen** (tabla: código, empleado, adelanto, extras, CCSS, otras ded., neto).
+2. Al **hacer clic** en una fila se abre un **modal** con el comprobante de ese empleado (`ComprobantePago`) y botón **Cerrar** (también Escape o clic fuera).
+3. Los comprobantes **ya no** se apilan debajo de la lista (evita scroll largo).
+
+Componente: `src/components/comprobantes-preview.tsx`  
+Página: `src/app/admin/planilla/[id]/reporte/page.tsx`  
+Estilos: `.comprobante-row-click`, `.comprobante-modal*`, `.print-only` en `globals.css`.
+
+### Impresión / PDF
+
+El botón **Imprimir / guardar PDF** sigue imprimiendo **todos** los comprobantes: hay un stack con clase `print-only` (oculto en pantalla, visible solo en `@media print`). El modal no se imprime.
+
+### Texto de ayuda en UI
+
+> Tocá un empleado para ver su comprobante. Para imprimir todos usá **Imprimir / guardar PDF**.
+
+---
+
+## 10. Cómo verificar
 
 ```bash
 npx vitest run tests/payroll.test.ts
 npx vitest run tests/shift-cr.test.ts
 ```
+
 
 Aplicar en Supabase (orden):
 
@@ -389,7 +416,7 @@ Aplicar en Supabase (orden):
 
 ---
 
-## 10. Relación con el Excel
+## 11. Relación con el Excel
 
 | Excel | Código |
 |---|---|
