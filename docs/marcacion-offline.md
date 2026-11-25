@@ -59,11 +59,27 @@ Las marcas ya guardadas en IndexedDB **se conservan** al actualizar.
 - Con red y pendientes: “Enviando / Pendientes N marcaciones offline”
 - Fallidos de negocio: botón **Reintentar**
 
+## Presencia en el panel admin (header)
+
+Además del ping liviano a `/api/health`, cuando hay red la tablet registra presencia en Supabase:
+
+| Pieza | Detalle |
+|---|---|
+| Tabla | `kiosk_presence` (migración `202611210001_kiosk_presence.sql`) |
+| RPC write | `report_kiosk_presence` (solo rol **kiosk**) |
+| RPC read | `list_kiosk_presence` (solo **admin**) |
+| Frecuencia DB | ~cada **60 s** (o al recuperar red); el probe local sigue cada 15 s |
+| Offline | Si no hay heartbeat reciente (**90 s**), el header muestra “Reloj sin señal” |
+| UI | Chip en el topbar admin (`KioskConnectionStatus`), refresh cada 30 s |
+
+Sin migración aplicada o sin tablet abierta en `/marcacion`, el chip dice **Reloj sin datos**.
+
 ## Pruebas
 
 ```bash
 npm test -- tests/connectivity.test.ts
 npm test -- tests/offline-punches.test.ts
+npm test -- tests/kiosk-presence.test.ts
 ```
 
 Detalle en `docs/tests.md`.

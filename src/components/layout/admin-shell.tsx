@@ -7,6 +7,8 @@ import {
  ClipboardCheck,TriangleAlert,LayoutDashboard,Users,Clock3,ClipboardList,Wallet,ScrollText,AlarmClock,
 } from "lucide-react";
 import {Avatar} from "@/components/ui/avatar";
+import {KioskConnectionStatus} from "@/components/kiosk-connection-status";
+import type {KioskPresenceList} from "@/lib/kiosk-presence";
 import {CommandPalette} from "./command-palette";
 
 const collapseListeners=new Set<()=>void>();
@@ -43,10 +45,11 @@ const crumbs:Record<string,string>={
 };
 
 export function AdminShell({
- children,displayName,logoutAction,badges={late:0,incidents:0,reminders:0,ot:0,attendance:0},
+ children,displayName,logoutAction,badges={late:0,incidents:0,reminders:0,ot:0,attendance:0},kioskPresence=null,
 }:{
  children:React.ReactNode;displayName:string;logoutAction:()=>Promise<void>;
  badges?:{late:number;incidents:number;reminders:number;ot:number;attendance:number};
+ kioskPresence?:KioskPresenceList|null;
 }){
  const path=usePathname();
  const [open,setOpen]=useState(false);
@@ -127,6 +130,7 @@ export function AdminShell({
      </nav>
     </div>
     <div className="topbar-right">
+     <KioskConnectionStatus initial={kioskPresence}/>
      <button type="button" className="search-trigger" onClick={()=>setCmdk(true)} aria-label="Buscar (Ctrl K)">
       <Search size={15} aria-hidden="true"/> Buscar… <kbd>Ctrl K</kbd>
      </button>

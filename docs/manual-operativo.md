@@ -101,6 +101,12 @@ Cada **15 segundos** la tablet hace un ping a `/api/health`. Si responde:
 - marca la red como disponible, y
 - **envía automáticamente** la cola pendiente.
 
+Además, con red reporta **presencia** a la base (~cada 60 s). En el **header del admin** ves el estado del reloj:
+
+- **Reloj en línea** — hubo heartbeat reciente  
+- **Reloj sin señal** — pasó más de ~90 s sin reporte (Wi‑Fi / tablet / PWA)  
+- **Reloj sin datos** — aún no hay reportes (migración o tablet no abierta)
+
 No hace falta apagar/encender el Wi‑Fi en condiciones normales. Tras un deploy, conviene **recargar una vez** la PWA de marcación (no reinstalar el ícono).
 
 Detalle técnico: `docs/marcacion-offline.md`.

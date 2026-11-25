@@ -48,6 +48,7 @@ No hace falta Supabase cloud ni `.env`: las pruebas de base usan PGlite y aplica
 | `tests/employee-pay-fields.test.tsx` | Componente | UI `EmployeePayFields` (checkbox, campos ocultos, CCSS auto) |
 | `tests/offline-punches.test.ts` | Unit | Reglas offline: no doble entrada/salida en cola de tablet |
 | `tests/connectivity.test.ts` | Unit | Probe `/api/health` (ok, error HTTP, red caída, timeout) |
+| `tests/kiosk-presence.test.ts` | Unit | Parseo del estado de presencia del reloj para el header admin |
 | `tests/database.test.ts` | Integración DB | Migraciones, RLS, RPC (asistencia, planilla, ops, pago por horas) |
 
 ---
@@ -97,6 +98,10 @@ No hace falta Supabase cloud ni `.env`: las pruebas de base usan PGlite y aplica
 
 - `probeReachability`: OK 200, HTTP error, `Failed to fetch`, abort por timeout.
 - Usado por `/marcacion` cada 15 s contra `/api/health`.
+
+### `kiosk-presence.test.ts` — Presencia del reloj (admin header)
+
+- Parseo de `list_kiosk_presence` (online, cola, seconds_ago).
 
 ### `database.test.ts` — Postgres (PGlite)
 

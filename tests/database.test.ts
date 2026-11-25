@@ -109,6 +109,18 @@ describe('Migraciones y seguridad PostgreSQL',()=>{
 
   await rpc('delete_employee',[hourlyId,'LIM1']);
  });
+ it('kiosk reporta presencia del reloj y solo el admin la consulta',async()=>{
+  await asUser(kiosk);
+  expect(await rpc<{ok:boolean}>('report_kiosk_presence',['tablet-test-01',2,'Reloj marcación','UA-test'])).toMatchObject({ok:true});
+  await asUser(admin);
+  const list=await rpc<{ok:boolean;any_online:boolean;devices:{device_id:string;queue_pending:number;online:boolean}[]}>('list_kiosk_presence',[90]);
+  expect(list.ok).toBe(true);
+  expect(list.any_online).toBe(true);
+  expect(list.devices.some(d=>d.device_id==='tablet-test-01'&&d.queue_pending===2&&d.online)).toBe(true);
+  expect(await rpc<{ok:boolean}>('report_kiosk_presence',['tablet-from-admin',0])).toMatchObject({ok:false});
+  await asUser(outsider);
+  expect(await rpc<{ok:boolean}>('list_kiosk_presence',[90])).toMatchObject({ok:false});
+ });
  it('elimina un empleado con todo su historial solo con el código correcto',async()=>{await asUser(outsider);await expect(rpc('delete_employee',[employee,'RT001'])).rejects.toThrow();await asUser(admin);await expect(rpc('delete_employee',[employee,'RT999'])).rejects.toThrow(/no coincide/);await rpc('delete_employee',[employee,'RT001']);await db.exec('reset role');for(const t of ['employees','employee_secrets','attendance_sessions','attendance_events','shifts','absences','payroll_items','task_evidence','ops_sessions'])expect((await db.query(`select 1 from public.${t} where ${t==='employees'?'id':'employee_id'}=$1`,[employee])).rows).toHaveLength(0);expect((await db.query('select 1 from public.punch_photos')).rows).toHaveLength(0);expect((await db.query('select 1 from public.incidents where reported_by_employee_id=$1',[employee])).rows).toHaveLength(0);expect((await db.query(`select 1 from public.audit_log where table_name='employees' and operation='DELETE' and record_id=$1`,[employee])).rows).toHaveLength(1);});
  it('limita intentos fallidos sin revertir el contador',async()=>{await asUser(kiosk);for(let i=0;i<10;i++)await rpc('register_punch',['RT001','0000','entry',crypto.randomUUID()]);expect((await rpc<{error:string}>('register_punch',['RT001','1234','entry',crypto.randomUUID()])).error).toContain('bloqueada');});
 });

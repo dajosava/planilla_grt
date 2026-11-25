@@ -20,6 +20,8 @@ ADMIN_LOGIN_PATH=acceso-grt-7k2m
 
 Ahí entran cuentas **admin** (panel) y **kiosk** (tablet). Guardá la URL en favoritos del admin y de la tablet; no la publiques.
 
+La pantalla (`src/app/login-gate/page.tsx`) usa layout de dos paneles (formulario + marca Nicoya), basado en el mock de login administrativo.
+
 ## Comportamiento
 
 | Ruta | Sin sesión |

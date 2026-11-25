@@ -4,6 +4,11 @@ import {LogIn,LogOut,CircleCheck,CircleX,Camera,CameraOff,CloudOff,RefreshCw} fr
 import {punch} from "./actions";
 import {probeReachability} from "@/lib/connectivity";
 import {
+ getKioskDeviceId,
+ markPresenceReported,
+ shouldReportPresence,
+} from "@/lib/kiosk-presence";
+import {
  enqueuePunch,
  listQueuedPunches,
  markQueuedPunchFailed,
@@ -12,6 +17,7 @@ import {
  removeQueuedPunch,
  requeueFailedPunches,
 } from "@/lib/offline-punches";
+import {reportKioskPresence} from "./presence";
 
 const kinds=[{id:"entry",name:"Entrada",icon:LogIn},{id:"exit",name:"Salida",icon:LogOut}] as const;
 const PHOTO_W=480,PHOTO_H=360;
@@ -20,8 +26,10 @@ const HEARTBEAT_MS=15_000;
 const requestCamera=()=>navigator.mediaDevices?navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:640},height:{ideal:480}},audio:false}):Promise.reject(new Error("Cámara no soportada"));
 
 type PunchMsg={error?:string;ok?:boolean;at?:string;kind?:string;photoUrl?:string|null;queued?:boolean};
+type KioskMode="live"|"preview";
 
-export function Kiosk(){
+export function Kiosk({mode="live"}:{mode?:KioskMode}){
+ const preview=mode==="preview";
  const [clock,setClock]=useState("");
  const [code,setCode]=useState("");
  const [pin,setPin]=useState("");
@@ -66,6 +74,7 @@ export function Kiosk(){
  },[]);
 
  const flushQueue=useCallback(async()=>{
+  if(preview)return;
   if(!reachable.current)return;
   if(flushing.current)return;
   flushing.current=true;
@@ -98,17 +107,39 @@ export function Kiosk(){
    setSyncing(false);
    await refreshQueue();
   }
- },[refreshQueue,setReachable]);
+ },[preview,refreshQueue,setReachable]);
 
- const checkConnectivity=useCallback(async(opts:{flushIfOnline?:boolean}={})=>{
+ const publishPresence=useCallback(async(force=false)=>{
+  if(preview)return;
+  if(!shouldReportPresence(Date.now(),force))return;
+  try{
+   const stats=await queueStats();
+   const res=await reportKioskPresence({
+    deviceId:getKioskDeviceId(),
+    queuePending:stats.pending,
+    label:"Reloj marcación",
+    userAgent:typeof navigator!=="undefined"?navigator.userAgent.slice(0,400):"",
+   });
+   if(res.ok)markPresenceReported();
+  }catch{/* presencia es best-effort */}
+ },[preview]);
+
+ const checkConnectivity=useCallback(async(opts:{flushIfOnline?:boolean;forcePresence?:boolean}={})=>{
+  if(preview){
+   setReachable(true);
+   return true;
+  }
   const ok=await probeReachability();
   setReachable(ok);
-  if(ok&&opts.flushIfOnline!==false)await flushQueue();
+  if(ok){
+   if(opts.flushIfOnline!==false)await flushQueue();
+   await publishPresence(!!opts.forcePresence);
+  }
   return ok;
- },[flushQueue,setReachable]);
+ },[flushQueue,preview,publishPresence,setReachable]);
 
  async function retryFailed(){
-  if(syncing)return;
+  if(preview||syncing)return;
   const ok=await checkConnectivity({flushIfOnline:false});
   if(!ok)return;
   await requeueFailedPunches();
@@ -131,6 +162,8 @@ export function Kiosk(){
  },[]);
 
  useEffect(()=>{
+  void refreshQueue();
+  if(preview)return;
   setReachable(navigator.onLine);
   const onOnline=()=>{
    // Optimista: el heartbeat confirma en ≤15 s si aún no hay salida real.
@@ -144,8 +177,7 @@ export function Kiosk(){
   window.addEventListener("online",onOnline);
   window.addEventListener("offline",onOffline);
   document.addEventListener("visibilitychange",onVis);
-  void refreshQueue();
-  void checkConnectivity();
+  void checkConnectivity({forcePresence:true});
   const beat=setInterval(()=>{void checkConnectivity();},HEARTBEAT_MS);
   return()=>{
    window.removeEventListener("online",onOnline);
@@ -153,7 +185,7 @@ export function Kiosk(){
    document.removeEventListener("visibilitychange",onVis);
    clearInterval(beat);
   };
- },[checkConnectivity,flushQueue,refreshQueue,setReachable]);
+ },[checkConnectivity,flushQueue,preview,refreshQueue,setReachable]);
 
  useEffect(()=>{if(!open)return;const id=setTimeout(()=>setMessage({}),message.ok||message.queued?6000:10000);const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape")setMessage({})};window.addEventListener("keydown",onKey);return()=>{clearTimeout(id);window.removeEventListener("keydown",onKey)}},[open,message.ok,message.queued]);
 
@@ -185,12 +217,31 @@ export function Kiosk(){
 
  async function submit(e:React.FormEvent){e.preventDefault();if(submitting.current)return;
   submitting.current=true;setBusy(true);setMessage({});
-  const key=JSON.stringify([code,pin,kind]);
-  if(request.current?.key!==key)request.current={key,id:crypto.randomUUID()};
-  const requestId=request.current.id;
   const kindName=kinds.find(k=>k.id===kind)?.name;
   const punchKind=kind as "entry"|"exit"|"break_start"|"break_end";
   const occurredAt=new Date().toISOString();
+
+  if(preview){
+   try{
+    const shot=await startCamera()?capture():null;
+    setMessage({
+     ok:true,
+     at:occurredAt,
+     kind:kindName,
+     photoUrl:shot,
+    });
+    setCode("");setPin("");setKind("entry");
+   }catch{
+    setMessage({error:"Vista previa: no se pudo simular la marcación."});
+   }finally{
+    submitting.current=false;setBusy(false);
+   }
+   return;
+  }
+
+  const key=JSON.stringify([code,pin,kind]);
+  if(request.current?.key!==key)request.current={key,id:crypto.randomUUID()};
+  const requestId=request.current.id;
   try{
    const shot=await startCamera()?capture():null;
    const photo=shot?.split(",")[1]??null;
@@ -222,33 +273,168 @@ export function Kiosk(){
   }
  }
 
- return <main className="kiosk kiosk-light"><video ref={video} className="camera-feed" playsInline muted aria-hidden="true"/><div className="kiosk-body">
- <div className="kiosk-brand">
-  <img src="/logo-grt.png" alt="Gasolinera Río Tempisque" className="kiosk-logo" width={160} height={90} decoding="async"/>
- </div>
- <p className="eyebrow">BIENVENIDO A TU JORNADA</p>
- <div className="clock" aria-label="Hora local">{clock||"--:--:--"}</div>
- <p className="muted">Hora de Costa Rica · Con red se usa la hora del servidor; sin red se guarda en la tablet</p>
- {(!online||queue.total>0)&&(
-  <div className="camera-notice warning offline-queue-banner" role="status">
-   {!online?<><CloudOff size={18}/><span>Sin internet — las marcas se guardan en la tablet y se envían al volver la red{queue.total?` (${queue.total} en cola)`:""}.</span></>:null}
-   {online&&queue.pending>0?<><RefreshCw size={18} className={syncing?"spin":undefined}/><span>{syncing?"Enviando":"Pendientes"} {queue.pending} marcación{queue.pending===1?"":"es"} offline.</span></>:null}
-   {online&&queue.failed>0?<><span>{queue.failed} con error al sincronizar.</span><button type="button" className="secondary small-button" disabled={syncing} onClick={()=>void retryFailed()}>Reintentar</button></>:null}
-  </div>
- )}
- <form onSubmit={submit} className="kiosk-form" autoComplete="off"><div className="two-col"><label>Código de empleado<input name="employee-code" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,""))} type="tel" inputMode="numeric" pattern="[0-9]*" enterKeyHint="next" placeholder="1" maxLength={12} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} data-lpignore="true" data-1p-ignore required disabled={busy}/></label><label>PIN personal<input name="employee-pin" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,""))} type="tel" inputMode="numeric" pattern="[0-9]*" enterKeyHint="done" className="pin-masked" minLength={4} maxLength={4} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} data-lpignore="true" data-1p-ignore placeholder="••••" required disabled={busy}/></label></div><div className="punch-options">{kinds.map(k=><button type="button" key={k.id} className={kind===k.id?"selected":""} aria-pressed={kind===k.id} disabled={busy} onClick={()=>setKind(k.id)}><k.icon size={40}/>{k.name}</button>)}</div>
- {camera==="unavailable"?<p className="camera-notice warning"><CameraOff size={18}/>Cámara no disponible. La marca se registrará sin foto y se notificará al administrador.</p>:<p className="camera-notice"><Camera size={18}/>Al confirmar se tomará una foto como evidencia de tu marcación.</p>}
- <button className="primary wide" disabled={busy}>{busy?"Registrando…":"Confirmar marcación"}</button></form>
- <p className="small muted">No compartas tu PIN. Si olvidaste una marca, consulta al administrador.</p>
- <p className="small"><a href="/operaciones">Tareas del turno →</a></p>
- </div>
- {open&&<div className="punch-modal-backdrop" onClick={close}><div className={`punch-modal ${message.ok||message.queued?"success":"error"}`} role="alertdialog" aria-modal="true" aria-labelledby="punch-modal-title" aria-describedby="punch-modal-text" onClick={e=>e.stopPropagation()}>
-  {message.ok&&message.photoUrl?<img src={message.photoUrl} alt="Foto tomada como evidencia de la marcación" className="punch-photo"/>:message.ok||message.queued?<CircleCheck size={72}/>:<CircleX size={72}/>}
-  <h2 id="punch-modal-title">{message.queued?"Marcación guardada sin red":message.ok?"Marcación registrada":"No se registró la marca"}</h2>
-  <p id="punch-modal-text">{message.queued?<>{message.kind} guardada a las <strong>{new Intl.DateTimeFormat("es-CR",{timeZone:"America/Costa_Rica",hour:"2-digit",minute:"2-digit"}).format(new Date(message.at!))}</strong>. Se enviará automáticamente cuando vuelva internet.</>:message.ok?<>{message.kind} registrada a las <strong>{new Intl.DateTimeFormat("es-CR",{timeZone:"America/Costa_Rica",hour:"2-digit",minute:"2-digit"}).format(new Date(message.at!))}</strong>.</>:message.error}</p>
-  {message.ok&&!message.queued&&!message.photoUrl&&<p className="small muted">La marca se guardó sin foto. El administrador verá una alerta.</p>}
-  {message.queued&&!message.photoUrl&&<p className="small muted">Se guardó sin foto (cámara no disponible).</p>}
-  <button className="primary wide" onClick={close} autoFocus>Aceptar</button>
- </div></div>}
- </main>;
+ const showBanner=!online||queue.total>0;
+
+ return (
+  <main className={`kiosk kiosk-light${preview?" kiosk-preview":""}`}>
+   <video ref={video} className="camera-feed" playsInline muted aria-hidden="true"/>
+   <div className="kiosk-body">
+    <div className="kiosk-brand">
+     <img
+      src="/logo-grt.png"
+      alt="Gasolinera Río Tempisque"
+      className="kiosk-logo"
+      width={160}
+      height={90}
+      decoding="async"
+     />
+    </div>
+    <p className="kiosk-welcome">Bienvenido a su jornada</p>
+
+    <div className="clock" aria-label="Hora local">{clock||"--:--:--"}</div>
+
+    {showBanner?(
+     <div className="camera-notice warning offline-queue-banner" role="status">
+      {!online?(
+       <><CloudOff size={18}/><span>Sin internet — las marcas se guardan en la tablet y se envían al volver la red{queue.total?` (${queue.total} en cola)`:""}.</span></>
+      ):null}
+      {online&&queue.pending>0?(
+       <><RefreshCw size={18} className={syncing?"spin":undefined}/><span>{syncing?"Enviando":"Pendientes"} {queue.pending} marcación{queue.pending===1?"":"es"} offline.</span></>
+      ):null}
+      {online&&queue.failed>0?(
+       <><span>{queue.failed} con error al sincronizar.</span>{!preview?(
+        <button type="button" className="secondary small-button" disabled={syncing} onClick={()=>void retryFailed()}>Reintentar</button>
+       ):null}</>
+      ):null}
+     </div>
+    ):null}
+
+    <form onSubmit={submit} className="kiosk-form" autoComplete="off">
+     <div className="punch-options">
+      {kinds.map(k=>(
+       <button
+        type="button"
+        key={k.id}
+        className={kind===k.id?"selected":""}
+        aria-pressed={kind===k.id}
+        disabled={busy}
+        onClick={()=>setKind(k.id)}
+       >
+        <k.icon size={40} aria-hidden="true"/>
+        {k.name}
+       </button>
+      ))}
+     </div>
+
+     <div className="two-col">
+      <label>
+       Código de empleado
+       <input
+        name="employee-code"
+        value={code}
+        onChange={e=>setCode(e.target.value.replace(/\D/g,""))}
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        enterKeyHint="next"
+        placeholder="1"
+        maxLength={12}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-lpignore="true"
+        data-1p-ignore
+        required
+        disabled={busy}
+       />
+      </label>
+      <label>
+       PIN personal
+       <input
+        name="employee-pin"
+        value={pin}
+        onChange={e=>setPin(e.target.value.replace(/\D/g,""))}
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        enterKeyHint="done"
+        className="pin-masked"
+        minLength={4}
+        maxLength={4}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-lpignore="true"
+        data-1p-ignore
+        placeholder="••••"
+        required
+        disabled={busy}
+       />
+      </label>
+     </div>
+
+     {camera==="unavailable"?(
+      <p className="camera-notice warning"><CameraOff size={18}/>Cámara no disponible. La marca se registrará sin foto y se notificará al administrador.</p>
+     ):(
+      <p className="camera-notice"><Camera size={18}/>Al confirmar se tomará una foto como evidencia de tu marcación.</p>
+     )}
+
+     <button className="primary wide" disabled={busy}>
+      {busy?"Registrando…":"Confirmar marcación"}
+     </button>
+    </form>
+
+    <p className="small muted">No compartas tu PIN. Si olvidaste una marca, consulta al administrador.</p>
+    {!preview?(
+     <p className="small"><a href="/operaciones">Tareas del turno →</a></p>
+    ):null}
+   </div>
+
+   {open?(
+    <div className="punch-modal-backdrop" onClick={close}>
+     <div
+      className={`punch-modal ${message.ok||message.queued?"success":"error"}`}
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="punch-modal-title"
+      aria-describedby="punch-modal-text"
+      onClick={e=>e.stopPropagation()}
+     >
+      {message.ok&&message.photoUrl?(
+       <img src={message.photoUrl} alt="Foto tomada como evidencia de la marcación" className="punch-photo"/>
+      ):message.ok||message.queued?(
+       <CircleCheck size={72}/>
+      ):(
+       <CircleX size={72}/>
+      )}
+      <h2 id="punch-modal-title">
+       {preview&&message.ok
+        ?"Vista previa · marcación simulada"
+        :message.queued
+         ?"Marcación guardada sin red"
+         :message.ok
+          ?"Marcación registrada"
+          :"No se registró la marca"}
+      </h2>
+      <p id="punch-modal-text">
+       {message.queued?(
+        <>{message.kind} guardada a las <strong>{new Intl.DateTimeFormat("es-CR",{timeZone:"America/Costa_Rica",hour:"2-digit",minute:"2-digit"}).format(new Date(message.at!))}</strong>. Se enviará automáticamente cuando vuelva internet.</>
+       ):message.ok?(
+        <>{message.kind} {preview?"simulada":"registrada"} a las <strong>{new Intl.DateTimeFormat("es-CR",{timeZone:"America/Costa_Rica",hour:"2-digit",minute:"2-digit"}).format(new Date(message.at!))}</strong>.</>
+       ):message.error}
+      </p>
+      {message.ok&&!message.queued&&!message.photoUrl?(
+       <p className="small muted">La marca se guardó sin foto. El administrador verá una alerta.</p>
+      ):null}
+      {message.queued&&!message.photoUrl?(
+       <p className="small muted">Se guardó sin foto (cámara no disponible).</p>
+      ):null}
+      <button className="primary wide" onClick={close} autoFocus>Aceptar</button>
+     </div>
+    </div>
+   ):null}
+  </main>
+ );
 }
