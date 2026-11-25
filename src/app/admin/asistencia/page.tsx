@@ -24,7 +24,8 @@ const MAX_OPEN_HOURS=12;
 const MAX_RANGE_DAYS=31;
 const PHOTO_EAGER_MS=24*60*60*1000;
 const SESSION_COLS="id,employee_id,started_at,ended_at,break_seconds,worked_hours,adjusted";
-const EVENT_COLS="id,session_id,employee_id,kind,occurred_at,punch_photos(status)";
+/** Sin embed de fotos: el join tumba PostgREST/Netlify en rangos de varios días. */
+const EVENT_COLS="id,session_id,employee_id,kind,occurred_at";
 
 const isDate=(v:unknown):v is string=>typeof v==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v));
 const addDays=(date:string,days:number)=>{const d=new Date(date+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)};
@@ -35,6 +36,21 @@ const daysBetween=(a:string,b:string)=>{
  const ms=Date.parse(b+"T00:00:00Z")-Date.parse(a+"T00:00:00Z");
  return Math.floor(ms/86400000)+1;
 };
+/** Carga estados de foto por lotes (evita URLs enormes en `.in()`). */
+async function loadPhotoStatus(
+ client:Awaited<ReturnType<typeof requireRole>>["client"],
+ eventIds:string[],
+){
+ const status=new Map<string,string|null>();
+ const chunk=200;
+ for(let i=0;i<eventIds.length;i+=chunk){
+  const slice=eventIds.slice(i,i+chunk);
+  const {data,error}=await client.from("punch_photos").select("event_id,status").in("event_id",slice);
+  if(error)continue;
+  for(const row of data??[])status.set(String(row.event_id),row.status??null);
+ }
+ return status;
+}
 /** Incluye jornadas que cruzan medianoche (ej. sale el 16 aunque entró el 15). */
 function overlapsRange(startedAt:string,endedAt:string|null,from:string,to:string){
  const start=dateCR(startedAt);
@@ -58,17 +74,20 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const focusSession=typeof params.sesion==="string"&&/^[0-9a-f-]{36}$/i.test(params.sesion)?params.sesion:"";
  const tab=params.tab==="ajustes"?"ajustes":"jornadas";
 
+ const rangeDays=daysBetween(from,to);
  // Buffer −1 día: jornadas nocturnas que empiezan el día anterior y terminan en el rango.
  let query=client.from("effective_sessions").select(SESSION_COLS)
   .gte("started_at",startCR(addDays(from,-1)))
   .lt("started_at",startCR(addDays(to,1)))
   .order("started_at",{ascending:false})
   .limit(500);
+ // Menos filas en rangos amplios: evita timeouts/502 en Netlify.
+ const eventsLimit=rangeDays<=1?1200:rangeDays<=7?1800:2500;
  let eventsQuery=client.from("attendance_events").select(EVENT_COLS)
   .gte("occurred_at",startCR(addDays(from,-1)))
   .lt("occurred_at",startCR(addDays(to,2)))
   .order("occurred_at")
-  .limit(3000);
+  .limit(eventsLimit);
  if(employee){query=query.eq("employee_id",employee);eventsQuery=eventsQuery.eq("employee_id",employee)}
 
  const [sessions,open,emp,events,acks]=await Promise.all([
@@ -79,9 +98,11 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    .limit(200),
   client.from("employees").select("id,code,full_name").order("full_name"),
   eventsQuery,
-  client.from("attendance_alert_acks").select("kind,ref_id").in("kind",["missing_photo","missing_exit"]),
+  client.from("attendance_alert_acks").select("kind,ref_id").in("kind",["missing_photo","missing_exit"]).limit(2000),
  ]);
- if(sessions.error||open.error||emp.error||events.error)throw new Error("No se pudo cargar la asistencia");
+ // Solo tumbar la página si fallan datos esenciales (no fotos/eventos).
+ if(sessions.error||open.error||emp.error)throw new Error("No se pudo cargar la asistencia");
+ const eventsLoadError=!!events.error;
  function sessionShift(_employeeId:string,startedAt:string,endedAt:string|null):ShiftResult|null{
   if(!endedAt)return null;
   try{return classifyShift(startedAt,endedAt)}catch{return null}
@@ -91,10 +112,18 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const ackedExit=new Set((acks.data??[]).filter(a=>a.kind==="missing_exit").map(a=>a.ref_id));
 
  type PunchEvent={id:string;session_id:string;employee_id:string;kind:string;occurred_at:string;photo:string|null};
- const punches:PunchEvent[]=(events.data??[]).map(ev=>{
-  const p=Array.isArray(ev.punch_photos)?ev.punch_photos[0]:ev.punch_photos;
-  return {id:ev.id,session_id:ev.session_id,employee_id:ev.employee_id,kind:ev.kind,occurred_at:ev.occurred_at,photo:(p as {status?:string}|null)?.status??null};
- });
+ const rawEvents=events.data??[];
+ const photoByEvent=rawEvents.length
+  ?await loadPhotoStatus(client,rawEvents.map(ev=>String(ev.id)))
+  :new Map<string,string|null>();
+ const punches:PunchEvent[]=rawEvents.map(ev=>({
+  id:ev.id,
+  session_id:ev.session_id,
+  employee_id:ev.employee_id,
+  kind:ev.kind,
+  occurred_at:ev.occurred_at,
+  photo:photoByEvent.get(String(ev.id))??null,
+ }));
  const bySession=new Map<string,PunchEvent[]>();
  for(const p of punches)bySession.set(p.session_id,[...(bySession.get(p.session_id)??[]),p]);
  const noPhoto=punches.filter(p=>p.photo==="missing"&&p.occurred_at<startCR(addDays(to,1))&&!ackedPhoto.has(p.id));
@@ -193,6 +222,11 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   {rangeClamped?(
    <p className="muted small" role="status">
     El rango se limitó a los últimos {MAX_RANGE_DAYS} días ({from} → {to}) para que la página cargue sin errores.
+   </p>
+  ):null}
+  {eventsLoadError?(
+   <p className="alert error" role="status">
+    No se pudieron cargar todas las marcas/fotos de este rango. Las jornadas sí se muestran; reintentá o filtrá por un empleado.
    </p>
   ):null}
 
