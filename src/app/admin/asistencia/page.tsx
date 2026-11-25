@@ -36,19 +36,26 @@ const daysBetween=(a:string,b:string)=>{
  const ms=Date.parse(b+"T00:00:00Z")-Date.parse(a+"T00:00:00Z");
  return Math.floor(ms/86400000)+1;
 };
-/** Carga estados de foto por lotes (evita URLs enormes en `.in()`). */
+/** Estados de foto en paralelo y con tope (evita timeout Netlify en 7+ días). */
 async function loadPhotoStatus(
  client:Awaited<ReturnType<typeof requireRole>>["client"],
  eventIds:string[],
 ){
  const status=new Map<string,string|null>();
- const chunk=200;
- for(let i=0;i<eventIds.length;i+=chunk){
-  const slice=eventIds.slice(i,i+chunk);
-  const {data,error}=await client.from("punch_photos").select("event_id,status").in("event_id",slice);
-  if(error)continue;
-  for(const row of data??[])status.set(String(row.event_id),row.status??null);
+ const ids=eventIds.slice(0,400);
+ const chunk=100;
+ const jobs:Promise<void>[]=[];
+ for(let i=0;i<ids.length;i+=chunk){
+  const slice=ids.slice(i,i+chunk);
+  jobs.push((async()=>{
+   try{
+    const {data,error}=await client.from("punch_photos").select("event_id,status").in("event_id",slice);
+    if(error||!data)return;
+    for(const row of data)status.set(String(row.event_id),row.status??null);
+   }catch{/* ignore lote */}
+  })());
  }
+ await Promise.all(jobs);
  return status;
 }
 /** Incluye jornadas que cruzan medianoche (ej. sale el 16 aunque entró el 15). */
@@ -80,9 +87,8 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   .gte("started_at",startCR(addDays(from,-1)))
   .lt("started_at",startCR(addDays(to,1)))
   .order("started_at",{ascending:false})
-  .limit(500);
- // Menos filas en rangos amplios: evita timeouts/502 en Netlify.
- const eventsLimit=rangeDays<=1?1200:rangeDays<=7?1800:2500;
+  .limit(rangeDays<=1?500:350);
+ const eventsLimit=rangeDays<=1?800:rangeDays<=5?1000:1200;
  let eventsQuery=client.from("attendance_events").select(EVENT_COLS)
   .gte("occurred_at",startCR(addDays(from,-1)))
   .lt("occurred_at",startCR(addDays(to,2)))
@@ -90,33 +96,66 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   .limit(eventsLimit);
  if(employee){query=query.eq("employee_id",employee);eventsQuery=eventsQuery.eq("employee_id",employee)}
 
- const [sessions,open,emp,events,acks]=await Promise.all([
-  query,
-  client.from("effective_sessions").select(SESSION_COLS)
-   .is("ended_at",null)
-   .order("started_at")
-   .limit(200),
-  client.from("employees").select("id,code,full_name").order("full_name"),
-  eventsQuery,
-  client.from("attendance_alert_acks").select("kind,ref_id").in("kind",["missing_photo","missing_exit"]).limit(2000),
- ]);
- // Solo tumbar la página si fallan datos esenciales (no fotos/eventos).
- if(sessions.error||open.error||emp.error)throw new Error("No se pudo cargar la asistencia");
- const eventsLoadError=!!events.error;
+ type SessRow={id:string;employee_id:string;started_at:string;ended_at:string|null;break_seconds:number|null;worked_hours:number|null;adjusted:boolean|null};
+ type EmpRow={id:string;code:string;full_name:string};
+ type EvRow={id:string;session_id:string;employee_id:string;kind:string;occurred_at:string};
+
+ let sessionsData:SessRow[]=[];
+ let openData:SessRow[]=[];
+ let empData:EmpRow[]=[];
+ let eventsData:EvRow[]=[];
+ let acksData:{kind:string;ref_id:string}[]=[];
+ let loadWarning:string|null=null;
+
+ try{
+  const [sessions,open,emp,events,acks]=await Promise.all([
+   query,
+   client.from("effective_sessions").select(SESSION_COLS)
+    .is("ended_at",null)
+    .order("started_at")
+    .limit(100),
+   client.from("employees").select("id,code,full_name").order("full_name"),
+   eventsQuery,
+   client.from("attendance_alert_acks").select("kind,ref_id").in("kind",["missing_photo","missing_exit"]).limit(500),
+  ]);
+  if(sessions.error||open.error||emp.error){
+   loadWarning="No se pudieron cargar todas las jornadas. Probá Hoy o filtrá por un empleado.";
+  }
+  if(events.error){
+   loadWarning=loadWarning??"No se pudieron cargar todas las marcas/fotos de este rango.";
+  }
+  sessionsData=(sessions.data??[]) as SessRow[];
+  openData=(open.data??[]) as SessRow[];
+  empData=(emp.data??[]) as EmpRow[];
+  eventsData=(events.data??[]) as EvRow[];
+  acksData=(acks.data??[]) as {kind:string;ref_id:string}[];
+ }catch{
+  loadWarning="Hubo un problema de conexión al cargar asistencia. Mostramos lo disponible; reintentá si falta data.";
+ }
+
  function sessionShift(_employeeId:string,startedAt:string,endedAt:string|null):ShiftResult|null{
   if(!endedAt)return null;
   try{return classifyShift(startedAt,endedAt)}catch{return null}
  }
 
- const ackedPhoto=new Set((acks.data??[]).filter(a=>a.kind==="missing_photo").map(a=>a.ref_id));
- const ackedExit=new Set((acks.data??[]).filter(a=>a.kind==="missing_exit").map(a=>a.ref_id));
+ const ackedPhoto=new Set(acksData.filter(a=>a.kind==="missing_photo").map(a=>a.ref_id));
+ const ackedExit=new Set(acksData.filter(a=>a.kind==="missing_exit").map(a=>a.ref_id));
+
+ const names=new Map(empData.map(e=>[e.id,`${e.full_name} (${e.code})`]));
+ const missingExit=(s:{ended_at:string|null;started_at:string})=>!s.ended_at&&(s.started_at<startCR(today)||openHours(s.started_at)>MAX_OPEN_HOURS);
+ const alerts=openData.filter(s=>missingExit(s)&&!ackedExit.has(s.id)&&(!employee||s.employee_id===employee));
+ const rows=sessionsData.filter(s=>overlapsRange(s.started_at,s.ended_at,from,to));
+
+ // Fotos solo de jornadas visibles (+ alertas abiertas), no de todo el rango.
+ const visibleSessionIds=new Set([...rows,...alerts].map(s=>s.id));
+ const eventsForRows=eventsData.filter(ev=>visibleSessionIds.has(ev.session_id));
+ let photoByEvent=new Map<string,string|null>();
+ try{
+  photoByEvent=await loadPhotoStatus(client,eventsForRows.map(ev=>String(ev.id)));
+ }catch{/* thumbs sin estado */}
 
  type PunchEvent={id:string;session_id:string;employee_id:string;kind:string;occurred_at:string;photo:string|null};
- const rawEvents=events.data??[];
- const photoByEvent=rawEvents.length
-  ?await loadPhotoStatus(client,rawEvents.map(ev=>String(ev.id)))
-  :new Map<string,string|null>();
- const punches:PunchEvent[]=rawEvents.map(ev=>({
+ const punches:PunchEvent[]=eventsForRows.map(ev=>({
   id:ev.id,
   session_id:ev.session_id,
   employee_id:ev.employee_id,
@@ -126,11 +165,31 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  }));
  const bySession=new Map<string,PunchEvent[]>();
  for(const p of punches)bySession.set(p.session_id,[...(bySession.get(p.session_id)??[]),p]);
- const noPhoto=punches.filter(p=>p.photo==="missing"&&p.occurred_at<startCR(addDays(to,1))&&!ackedPhoto.has(p.id));
- const names=new Map(emp.data?.map(e=>[e.id,`${e.full_name} (${e.code})`]));
- const missingExit=(s:{ended_at:string|null;started_at:string})=>!s.ended_at&&(s.started_at<startCR(today)||openHours(s.started_at)>MAX_OPEN_HOURS);
- const alerts=(open.data??[]).filter(s=>missingExit(s)&&!ackedExit.has(s.id)&&(!employee||s.employee_id===employee));
- const rows=(sessions.data??[]).filter(s=>overlapsRange(s.started_at,s.ended_at,from,to));
+
+ // Alertas sin foto: query liviana aparte (tope 80).
+ let noPhoto:PunchEvent[]=[];
+ try{
+  let missingQ=client.from("punch_photos")
+   .select("event_id,status,attendance_events!inner(id,session_id,employee_id,kind,occurred_at)")
+   .eq("status","missing")
+   .gte("attendance_events.occurred_at",startCR(from))
+   .lt("attendance_events.occurred_at",startCR(addDays(to,1)))
+   .limit(80);
+  if(employee)missingQ=missingQ.eq("attendance_events.employee_id",employee);
+  const {data:missingRows}=await missingQ;
+  noPhoto=(missingRows??[]).flatMap(row=>{
+   const ev=Array.isArray(row.attendance_events)?row.attendance_events[0]:row.attendance_events;
+   if(!ev||ackedPhoto.has(String(ev.id)))return [];
+   return [{
+    id:String(ev.id),
+    session_id:String(ev.session_id),
+    employee_id:String(ev.employee_id),
+    kind:String(ev.kind),
+    occurred_at:String(ev.occurred_at),
+    photo:"missing",
+   } satisfies PunchEvent];
+  });
+ }catch{/* sin panel de fotos faltantes */}
  const correctable=[...alerts,...rows.filter(r=>!alerts.some(a=>a.id===r.id))];
  const correctableOptions:CorrectableSession[]=correctable.map(s=>{
   const breakMin=Math.round(Number(s.break_seconds??0)/60);
@@ -157,7 +216,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
  const presets=[
   {label:"Hoy",from:today,to:today},
   {label:"Ayer",from:addDays(today,-1),to:addDays(today,-1)},
-  {label:"Últimos 7 días",from:addDays(today,-6),to:today},
+  {label:"Últimos 5 días",from:addDays(today,-4),to:today},
   {label:"Este mes",from:today.slice(0,8)+"01",to:today},
  ];
 
@@ -188,7 +247,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
       Cuando no hubo marcación en la tablet. Queda como ajustada (sin fotos). Horario Costa Rica.
      </p>
      <ActionForm action={createManualSession} submit="Registrar jornada">
-      <EmployeeSelect employees={(emp.data??[]).map(e=>({id:e.id,full_name:e.full_name,code:e.code}))}/>
+      <EmployeeSelect employees={empData.map(e=>({id:e.id,full_name:e.full_name,code:e.code}))}/>
       <label>Entrada<input name="started_at" type="datetime-local" required/></label>
       <label>Salida<input name="ended_at" type="datetime-local" required/></label>
       <label>Descanso total (minutos)
@@ -216,7 +275,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
    to={to}
    today={today}
    employee={employee}
-   employees={(emp.data??[]).map(e=>({id:e.id,full_name:e.full_name,code:e.code}))}
+   employees={empData.map(e=>({id:e.id,full_name:e.full_name,code:e.code}))}
   />
 
   {rangeClamped?(
@@ -224,10 +283,8 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
     El rango se limitó a los últimos {MAX_RANGE_DAYS} días ({from} → {to}) para que la página cargue sin errores.
    </p>
   ):null}
-  {eventsLoadError?(
-   <p className="alert error" role="status">
-    No se pudieron cargar todas las marcas/fotos de este rango. Las jornadas sí se muestran; reintentá o filtrá por un empleado.
-   </p>
+  {loadWarning?(
+   <p className="alert error" role="status">{loadWarning}</p>
   ):null}
 
   <Suspense fallback={<p className="muted small">Cargando alertas de horas extra…</p>}>

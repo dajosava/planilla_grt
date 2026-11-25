@@ -6,7 +6,7 @@ export default function ErrorPage({reset}:{reset:()=>void}){
    <div>
     <p className="eyebrow">Error</p>
     <h1>No se pudo cargar esta sección</h1>
-    <p className="muted">Comprobá la conexión e intentá de nuevo. En Asistencia, si el rango es amplio, filtrá por Hoy o por un empleado.</p>
+    <p className="muted">Comprobá la conexión e intentá de nuevo. En Asistencia, si el rango es amplio, filtrá por Hoy, Últimos 5 días o por un empleado.</p>
    </div>
    <AlertTriangle style={{color:"var(--danger)"}} size={28} aria-hidden="true"/>
   </div>
