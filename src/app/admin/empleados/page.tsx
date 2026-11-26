@@ -7,7 +7,9 @@ import {EmployeeSelect} from "@/components/employee-select";
 import {EmployeesDirectory,type EmployeeListItem} from "@/components/employees-directory";
 import {EmployeesAreaFilter} from "@/components/employees-area-filter";
 import {EmployeePayFields} from "@/components/employee-pay-fields";
+import {HolidaysCalendar,type HolidayItem} from "@/components/holidays-calendar";
 import {COMPANIES,isCompany} from "@/lib/companies";
+import {requireRole} from "@/lib/auth";
 import {createEmployee,resetPin,vacationBalance} from "../actions";
 
 const TABS=[
@@ -15,6 +17,7 @@ const TABS=[
  {id:"registrar",label:"Registrar empleado"},
  {id:"pin",label:"Restablecer PIN"},
  {id:"vacaciones",label:"Ajustar saldo de vacaciones"},
+ {id:"feriados",label:"Feriados"},
 ] as const;
 
 type TabId=(typeof TABS)[number]["id"];
@@ -26,7 +29,7 @@ function isTab(v:unknown):v is TabId{
 export default async function Page({
  searchParams,
 }:{
- searchParams:Promise<{area?:string;tab?:string}>;
+ searchParams:Promise<{area?:string;tab?:string;year?:string}>;
 }){
  const list=await employees();
  const params=await searchParams;
@@ -35,6 +38,24 @@ export default async function Page({
  const filtered=area?list.filter(e=>e.department===area):list;
  const counts=Object.fromEntries(COMPANIES.map(c=>[c,list.filter(e=>e.department===c).length])) as Record<string,number>;
  const today=todayCR();
+ const yearRaw=Number(params.year);
+ const holidayYear=Number.isFinite(yearRaw)&&yearRaw>=2000&&yearRaw<=2100
+  ?Math.trunc(yearRaw)
+  :Number(today.slice(0,4));
+
+ let holidays:HolidayItem[]=[];
+ if(tab==="feriados"){
+  try{
+   const {client}=await requireRole("admin");
+   const {data}=await client.rpc("list_holidays",{p_year:holidayYear});
+   if(data&&typeof data==="object"&&Array.isArray((data as {holidays?:unknown}).holidays)){
+    holidays=((data as {holidays:Record<string,unknown>[]}).holidays).map(h=>({
+     date:String(h.date??"").slice(0,10),
+     name:String(h.name??"Feriado"),
+    })).filter(h=>/^\d{4}-\d{2}-\d{2}$/.test(h.date));
+   }
+  }catch{/* RPC aún no migrado */}
+ }
 
  const directory:EmployeeListItem[]=filtered.map(e=>({
   id:e.id,
@@ -58,6 +79,7 @@ export default async function Page({
   const q=new URLSearchParams();
   if(id!=="directorio")q.set("tab",id);
   if(id==="directorio"&&area)q.set("area",area);
+  if(id==="feriados")q.set("year",String(holidayYear));
   const s=q.toString();
   return s?`/admin/empleados?${s}`:"/admin/empleados";
  };
@@ -65,7 +87,6 @@ export default async function Page({
  return <>
   <Heading
    title="Empleados"
-   description="Cada persona pertenece a una sociedad: Gasolinera, Supermercado o Transporte (planilla separada)."
    actions={
     <nav className="module-tabs" aria-label="Secciones de empleados">
      {TABS.map(t=>(
@@ -139,6 +160,12 @@ export default async function Page({
       </ActionForm>
      </>
     )}
+   </Panel>
+  )}
+
+  {tab==="feriados"&&(
+   <Panel title={`Calendario de feriados · ${holidayYear}`}>
+    <HolidaysCalendar year={holidayYear} holidays={holidays}/>
    </Panel>
   )}
  </>;

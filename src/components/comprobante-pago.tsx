@@ -144,7 +144,7 @@ export function linesFromPayrollItem(i:{
  if(otH>0||otAmt>0)income.push({label:"Horas extra (1.5×)",hours:otH?otH.toFixed(2):"",amountCents:otAmt});
  const dblH=Number(i.double_hours||0);
  const dblAmt=Number(i.double_amount_cents||0);
- if(dblH>0||dblAmt>0)income.push({label:"Horas doble (2×)",hours:dblH?dblH.toFixed(2):"",amountCents:dblAmt});
+ if(dblH>0||dblAmt>0)income.push({label:"Horas doble / feriado (2×)",hours:dblH?dblH.toFixed(2):"",amountCents:dblAmt});
  const other=Number(i.other_pay_cents||0);
  if(other>0)income.push({label:"Otros pagos / comisiones",hours:"",amountCents:other});
 

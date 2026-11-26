@@ -209,6 +209,40 @@ Implementación:
 - El clasificador trabaja sobre un intervalo continuo; los descansos ya están descontados en `worked_hours` de `effective_sessions` para el **monto de OT**, pero el conteo de minutos nocturnos del tipo usa la ventana entrada–salida (sin restar break minuto a minuto).
 - Migraciones: `202611150001_shift_classification_cr.sql`, `202611160001_ot_grace_30min.sql`, `202611160002_ot_from_punch_only.sql`, `202611160003_early_day_tolerance.sql`.
 
+#### Feriados → pago doble en planilla
+
+Catálogo global (no por empleado):
+
+| Pieza | Detalle |
+|---|---|
+| Tabla | `public.holidays` (`holiday_date` PK, `name`) |
+| UI | `/admin/empleados?tab=feriados` → `HolidaysCalendar` |
+| RPCs | `list_holidays(year)`, `upsert_holiday(date, name)`, `delete_holiday(date)` |
+| Migración | `202611250001_holidays.sql` |
+
+En `sync_payroll_ot_from_attendance(p_run_id)`:
+
+```text
+para cada ítem (empleado) de la quincena:
+  para cada día con sesiones cerradas en [period_start, period_end]:
+    work_date = fecha CR de started_at
+    hours     = suma worked_hours ese día (tope 24)
+
+    si work_date ∈ holidays:
+      double_hours += hours          # todo el día a 2×
+      # no genera payroll_ot_days ni OT 1.5×
+    si no:
+      OT vía shift_ot_context → payroll_ot_days / suggested_ot_hours
+      ordinary_hours += hours − ot
+
+  double_amount_cents = round(double_hours × coalesce(double_rate_cents, hourly_rate_cents×2))
+  update payroll_items.double_hours / double_amount_cents
+```
+
+**Comprobante:** `linesFromPayrollItem` → línea `Horas doble / feriado (2×)` si `double_hours` o `double_amount_cents` > 0 (`src/components/comprobante-pago.tsx`).
+
+**Importante:** el vínculo es por **fecha**, no por ID de empleado. Si el día está marcado feriado y el colaborador trabajó, el sync escribe el doble en su `payroll_items`. Re-sincronizar en borrador **recalcula** `double_hours` desde asistencia + feriados (sobrescribe el valor previo de ese campo en el sync).
+
 ### CCSS
 
 ```text

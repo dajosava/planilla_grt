@@ -52,6 +52,40 @@ export async function resetPin(_:ActionState,form:FormData):Promise<ActionState>
 export async function deleteEmployee(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({id:z.uuid(),confirm_code:z.string().trim().min(1)}).parse(fields(form));const {error}=await client.rpc("delete_employee",{p_id:v.id,p_confirm_code:v.confirm_code});dbError(error);revalidatePath("/admin",'layout');return {success:"Empleado eliminado."}}catch(e){return failure(e)}}
 export async function toggleEmployee(form:FormData){const {client}=await requireRole("admin");const id=z.uuid().parse(form.get("id"));const {error}=await client.rpc("set_employee_active",{p_employee:id,p_active:form.get("active")==="true"});dbError(error);revalidatePath("/admin/empleados")}
 export async function vacationBalance(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({employee_id:z.uuid(),days:z.coerce.number().min(-365).max(365).refine(n=>n!==0),reason:z.string().trim().min(5).max(500)}).parse(fields(form));const {error}=await client.rpc("add_vacation_balance",{p_employee:v.employee_id,p_days:v.days,p_reason:v.reason});dbError(error);revalidatePath("/admin/empleados");return {success:"Saldo ajustado y movimiento registrado."}}catch(e){return failure(e)}}
+
+export async function upsertHoliday(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const v=z.object({
+   date:dateSchema,
+   name:z.string().trim().min(2).max(80),
+  }).parse({
+   date:form.get("date"),
+   name:String(form.get("name")||"Feriado").trim()||"Feriado",
+  });
+  const {data,error}=await client.rpc("upsert_holiday",{p_date:v.date,p_name:v.name});
+  dbError(error);
+  if(data&&typeof data==="object"&&(data as {ok?:boolean}).ok===false){
+   throw new Error(String((data as {error?:string}).error??"No se pudo guardar el feriado"));
+  }
+  revalidatePath("/admin/empleados");
+  return {success:`Feriado guardado: ${v.date}`};
+ }catch(e){return failure(e)}
+}
+
+export async function deleteHoliday(_:ActionState,form:FormData):Promise<ActionState>{
+ const {client}=await requireRole("admin");
+ try{
+  const date=dateSchema.parse(form.get("date"));
+  const {data,error}=await client.rpc("delete_holiday",{p_date:date});
+  dbError(error);
+  if(data&&typeof data==="object"&&(data as {ok?:boolean}).ok===false){
+   throw new Error(String((data as {error?:string}).error??"No se pudo eliminar el feriado"));
+  }
+  revalidatePath("/admin/empleados");
+  return {success:`Feriado eliminado: ${date}`};
+ }catch(e){return failure(e)}
+}
 export async function createAbsence(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({employee_id:z.uuid(),kind:z.enum(["vacation","sick","permission"]),starts_on:dateSchema,ends_on:dateSchema,vacation_days:z.coerce.number().min(0).max(365),note:z.string().max(1000)}).parse(fields(form));if(v.ends_on<v.starts_on)throw new Error("Revisa las fechas.");if(v.kind==="vacation"&&v.vacation_days<=0)throw new Error("Indica los días laborables de vacaciones que corresponden.");const {error}=await client.from("absences").insert({...v,vacation_days:v.kind==="vacation"?v.vacation_days:0});dbError(error);revalidatePath("/admin/ausencias");return {success:"Ausencia registrada, pendiente de revisión."}}catch(e){return failure(e)}}
 export async function reviewAbsence(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const id=z.uuid().parse(form.get("id"));const status=z.enum(["approved","rejected"]).parse(form.get("status"));const {error}=await client.rpc("review_absence",{p_id:id,p_status:status});dbError(error);revalidatePath("/admin/ausencias");revalidatePath("/admin/empleados");return {success:"Revisión guardada."}}catch(e){return failure(e)}}
 export async function correctSession(_:ActionState,form:FormData):Promise<ActionState>{const {client}=await requireRole("admin");try{const v=z.object({session_id:z.uuid(),started_at:z.string().min(16),ended_at:z.string().min(16),break_minutes:z.coerce.number().int().min(0).max(1440),reason:z.string().trim().min(5).max(500)}).parse(fields(form));const start=new Date(v.started_at+":00-06:00");const end=new Date(v.ended_at+":00-06:00");if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||end<=start||end.getTime()-start.getTime()<v.break_minutes*60000)throw new Error("Revisa las fechas y el descanso.");const {error}=await client.rpc("correct_session",{p_session:v.session_id,p_start:start.toISOString(),p_end:end.toISOString(),p_break:v.break_minutes,p_reason:v.reason});dbError(error);revalidatePath("/admin/asistencia");return {success:"Ajuste guardado. Podés corregir de nuevo si hace falta; las marcaciones originales se conservan."}}catch(e){return failure(e)}}
@@ -286,9 +320,11 @@ export async function syncPayrollOt(_:ActionState,form:FormData):Promise<ActionS
   revalidatePath("/admin/planilla");
   revalidatePath("/admin/asistencia");
   const pending=typeof data==="object"&&data&&"pending" in data?Number((data as {pending:number}).pending):0;
+  const holidayDays=typeof data==="object"&&data&&"holiday_days" in data?Number((data as {holiday_days:number}).holiday_days):0;
+  const holidayNote=holidayDays>0?` · ${holidayDays} día(s) feriado aplicados a pago doble.`:".";
   return {success:pending>0
-   ?`Asistencia sincronizada. ${pending} empleado(s) con horas extra pendientes de aprobar.`
-   :"Asistencia sincronizada. No hay horas extra nuevas por aprobar."};
+   ?`Asistencia sincronizada. ${pending} empleado(s) con horas extra pendientes de aprobar${holidayNote}`
+   :`Asistencia sincronizada. No hay horas extra nuevas por aprobar${holidayNote}`};
  }catch(e){return failure(e)}
 }
 

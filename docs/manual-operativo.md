@@ -45,7 +45,7 @@ La home pública (`/`) solo ofrece acceso a **Marcación y tareas**. El login ad
 | Módulo | Ruta | Función |
 |---|---|---|
 | Resumen | `/admin` | KPIs y acceso rápido |
-| Empleados | `/admin/empleados` | Alta, edición, PIN, vacaciones, sociedades |
+| Empleados | `/admin/empleados` | Alta, edición, PIN, vacaciones, feriados, sociedades |
 | Asistencia | `/admin/asistencia` | Jornadas, alertas, ajustes, horas extra |
 | Vacaciones y ausencias | `/admin/ausencias` | Solicitudes y saldos |
 | Planilla | `/admin/planilla` | Quincenas, extras, cierre, comprobantes |
@@ -164,6 +164,17 @@ horas_extra_sugeridas = max(0, horas_trabajadas_del_día − límite_ordinario)
 | Registrar empleado | Alta nueva |
 | Restablecer PIN | Nuevo PIN de 4 dígitos |
 | Ajustar saldo de vacaciones | Acreditar / descontar días con motivo |
+| Feriados | Calendario anual: marcar / quitar feriados del negocio |
+
+### Feriados (calendario)
+
+**Ruta:** `/admin/empleados?tab=feriados`
+
+1. Elegí el **año** en el selector.
+2. Navegá el mes (carrusel) y tocá los días feriados; podés ponerles un nombre.
+3. Esos días quedan guardados en la tabla `holidays` (fecha + nombre).
+4. **No se asocian al empleado uno por uno:** el feriado es global del negocio.
+5. Al sincronizar la planilla (ver §8.2), el sistema cruza **fecha de trabajo (Costa Rica)** con `holidays` y las horas de ese día pasan a **pago doble**.
 
 ### Datos importantes al registrar
 
@@ -242,47 +253,97 @@ No se puede cerrar una planilla si hay ausencias pendientes que bloqueen el cier
 
 Los montos quedan en **snapshot**: si después cambiás el salario del empleado, **no** se recalculan quincenas ya creadas.
 
-### 8.2 Sincronizar horas extra desde asistencia
+### 8.2 Sincronizar horas extra (y feriados) desde asistencia
 
 En la quincena (borrador):
 
 1. Usar **Actualizar extras desde asistencia** (`sync_payroll_ot_from_attendance`).
-2. El sistema propone horas extra según jornadas del período (límites 8/7/6).
-3. Quedan en estado **pendiente de aprobación**.
+2. Por cada empleado y cada **día trabajado** dentro del período de la quincena:
+   - Si esa fecha está en **Feriados** → **todas** las horas del día van a `double_hours` (pago doble). Ese día **no** genera OT 1.5×.
+   - Si no es feriado → se calculan horas ordinarias + extras sugeridas (límites 8/7/6).
+3. Las extras 1.5× quedan en estado **pendiente de aprobación**.
+4. Las horas de feriado se escriben directo en el ítem (`double_hours` / `double_amount_cents`) y aparecen en el comprobante como **Horas doble / feriado (2×)**.
+
+**Asociación feriado ↔ planilla**
+
+| Pieza | Rol |
+|---|---|
+| Empleados → Feriados | Catálogo de fechas (`holidays.holiday_date`) |
+| Asistencia | Horas reales por día (`effective_sessions`, fecha CR de entrada) |
+| Quincena | Define el rango `period_start` … `period_end` |
+| Sync | Cruza día trabajado ∩ feriado ∩ período → suma horas a doble |
+| Comprobante | Muestra la línea de horas doble / feriado |
+
+No hace falta vincular feriado a un empleado: si trabajó ese día, aplica el doble.
+
+#### Workflow: feriado → planilla → comprobante
+
+```mermaid
+flowchart TD
+  A[Empleados: marcar feriado en calendario] --> B[Tablet: empleado marca entrada/salida ese día]
+  B --> C[Planilla borrador: Actualizar extras desde asistencia]
+  C --> D{¿Ese día es feriado?}
+  D -->|Sí| E[Horas del día → pago doble automático]
+  D -->|No| F[OT 1.5× sugerida → pendiente de aprobar]
+  E --> G[Revisar ítem / ajustar si hace falta]
+  F --> H[Aprobar o rechazar OT]
+  H --> G
+  G --> I[Marcar empleado revisado]
+  I --> J[Cerrar quincena]
+  J --> K[Comprobante: Horas doble / feriado 2×]
+```
+
+**Pasos operativos**
+
+1. **Antes del feriado (o cuando se publique):** en `/admin/empleados?tab=feriados` marcar el día.
+2. **El día feriado:** el personal marca normalmente en la tablet.
+3. **Al armar/cerrar la quincena:** crear la planilla (si no existe) y pulsar **Actualizar extras desde asistencia**.
+4. **Pago doble por feriado:** queda cargado solo; **no** aparece en la cola de “aprobar extras”.
+5. **Extras 1.5× de otros días:** sí hay que **aprobarlas** (o rechazarlas) antes de poder cerrar.
+6. **Revisión:** el admin puede abrir el ítem y ver/editar `Horas doble` si hace falta corregir.
+7. **Cierre:** con ítems revisados y sin OT pendiente → cerrar → el comprobante muestra la línea de feriado.
+
+| Concepto | ¿Pasa por aprobar/rechazar? | Dónde se ve |
+|---|---|---|
+| Horas en día feriado (2×) | **No** — automático al sync | Ítem planilla + comprobante |
+| Horas extra normales (1.5×) | **Sí** — pendiente hasta aprobar | Alertas / cola OT + comprobante |
 
 ### 8.3 Aceptar / rechazar horas extra
 
 Por empleado (o en lote, según la UI):
 
-- **Aprobar** → las horas sugeridas entran al cálculo (monto ≈ horas × valor hora × **1.5**).
+- **Aprobar** → las horas sugeridas (1.5×) entran al cálculo (monto ≈ horas × valor hora × **1.5**).
 - **Rechazar** → no se pagan esas extras sugeridas.
-- También se pueden **ajustar** horas extra / doble (2×) / otros pagos / faltantes / facturas al editar el ítem.
+- También se pueden **ajustar** horas extra / doble / otros pagos / faltantes / facturas al editar el ítem (el doble de feriado ya viene del sync; se puede corregir a mano si hace falta).
 
-**No se puede cerrar la quincena** mientras existan extras en estado pendiente de aprobar.
+**No se puede cerrar la quincena** mientras existan extras OT pendientes de aprobar.
 
 ### 8.4 Cómo entran las extras a la planilla (resumen)
 
 ```
+Feriados (calendario en Empleados)
+        +
 Marcaciones (tablet / ajustes)
-        ↓
-Asistencia calcula sugerencia OT por día/jornada
         ↓
 Planilla: “Actualizar extras desde asistencia”
         ↓
-Admin aprueba / rechaza / ajusta montos
+  ┌─ Día feriado → horas a pago doble (2×)
+  └─ Día normal  → OT sugerida 1.5× (pendiente de aprobar)
+        ↓
+Admin aprueba / rechaza OT / ajusta montos
         ↓
 RPC update_payroll_item recalcula neto
         ↓
 Marcar empleado como revisado
         ↓
-Cerrar quincena
+Cerrar quincena → comprobante con “Horas doble / feriado (2×)”
 ```
 
 Otros conceptos manuales frecuentes:
 
 | Campo | Uso |
 |---|---|
-| Horas doble (2×) | Captura administrativa |
+| Horas doble (2×) | Feriados (auto al sync) o captura administrativa |
 | Otros pagos | Comisiones / bonos |
 | Faltantes pista | Deducción |
 | Facturas / recibos | Deducción |
