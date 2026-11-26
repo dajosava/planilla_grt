@@ -115,9 +115,9 @@ En Android, mantener pulsado el icono de la app muestra estos atajos.
 ### Estrategia
 
 1. **Precache** del build (HTML/JS/CSS críticos) + `/~offline`.
-2. **Runtime caching** con `defaultCache` de Serwist (estáticos, etc.).
+2. **Runtime caching**: `NetworkOnly` para `/api/*` (antes del `defaultCache`, para que el health no use NetworkFirst cacheado) + `defaultCache` de Serwist (estáticos, etc.).
 3. **Fallback de navegación**: si no hay red al pedir un documento → `/~offline`.
-4. `skipWaiting` + `clientsClaim`: actualiza el SW sin esperar a cerrar todas las pestañas.
+4. `skipWaiting` + `clientsClaim`: actualiza el SW sin esperar a cerrar todas las pestañas; en kiosco, `controllerchange` recarga la página.
 5. `cacheOnNavigation={false}` en el provider: no cachea agresivamente cada página admin (evita datos viejos de planilla).
 
 ### Qué NO hace el SW hoy
@@ -324,6 +324,7 @@ Documentación ampliada: [`docs/marcacion-offline.md`](./marcacion-offline.md).
 | Hora | `occurredAt` de la tablet; RPC acepta `p_occurred_at` (máx. 2 min futuro / 72 h pasado) |
 | Sync | Heartbeat `GET /api/health` cada 15 s + eventos `online`/`visibilitychange`; orden FIFO |
 | Conectividad | `src/lib/connectivity.ts` — no confiar solo en `navigator.onLine` (Wi‑Fi “congelado” en tablets) |
+| Post-deploy | `KioskLock` recarga en `controllerchange`; SW fuerza `NetworkOnly` en `/api/*` (evita NetworkFirst cacheado del health) |
 | Errores de negocio | Quedan `failed` (no reintentan solos; botón Reintentar) |
 | Migración | `supabase/migrations/202611140001_offline_punch.sql` |
 
@@ -365,8 +366,8 @@ supabase/migrations/202611140001_offline_punch.sql
 
 Tras un deploy:
 
-1. Abrí la app instalada.
-2. Si no refresca sola, cerrala por completo y volvé a abrirla (SW con `skipWaiting`).
+1. Con la marcación abierta, el kiosco **recarga sola** al activarse el SW nuevo (`controllerchange`).
+2. Si no refresca (tablet dormida / PWA cerrada), abrila de nuevo; no hace falta tocar el Wi‑Fi.
 3. Si el icono/manifest no cambia, desinstalá y reinstalá la PWA.
 
 ---
@@ -392,7 +393,7 @@ Tras un deploy:
 - [ ] Permiso de **cámara** concedido
 - [ ] Migración `202611140001_offline_punch` aplicada en Supabase
 - [ ] Probar marca con modo avión → banner cola → volver red → sync (sin apagar/encender Wi‑Fi; heartbeat ≤15 s)
-- [ ] Tras deploy: recargar marcación una vez (no hace falta reinstalar la PWA)
+- [ ] Tras deploy: la marcación se recarga sola (no reinstalar PWA ni resetear Wi‑Fi)
 - [ ] Acceso directo a Marcación (opcional)
 - [ ] App pinning activado
 - [ ] Wi‑Fi estable (sin red no hay marca)

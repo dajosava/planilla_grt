@@ -49,7 +49,8 @@ También:
 ## Qué no hace falta al desplegar
 
 - **No** reinstalar la PWA.
-- Tras el deploy: con red, abrir marcación y **recargar una vez** (o cerrar/abrir la app) para cargar el JS nuevo. Ver `docs/pwa.md` (`skipWaiting` / `clientsClaim`).
+- **No** apagar/encender el Wi‑Fi para “despertar” el sync.
+- Tras un deploy, el SW nuevo (`skipWaiting` + `clientsClaim`) dispara `controllerchange` en el kiosco y **recarga sola** la PWA de marcación/operaciones. `/api/*` va por `NetworkOnly` (sin cache NetworkFirst) para que el probe de health no quede con un “ok” viejo ni con sockets colgados.
 
 Las marcas ya guardadas en IndexedDB **se conservan** al actualizar.
 

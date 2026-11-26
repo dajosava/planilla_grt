@@ -25,6 +25,10 @@ export async function probeReachability(opts:ProbeOptions={}):Promise<boolean>{
    cache:"no-store",
    credentials:"same-origin",
    signal:ctrl.signal,
+   headers:{
+    "cache-control":"no-cache",
+    pragma:"no-cache",
+   },
   });
   return res.ok;
  }catch{

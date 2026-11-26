@@ -11,6 +11,9 @@ describe("probeReachability",()=>{
   const init=fetchImpl.mock.calls[0]?.[1];
   expect(init?.cache).toBe("no-store");
   expect(init?.method).toBe("GET");
+  const headers=new Headers(init?.headers);
+  expect(headers.get("cache-control")).toBe("no-cache");
+  expect(headers.get("pragma")).toBe("no-cache");
  });
 
  it("devuelve false si el status no es ok",async()=>{

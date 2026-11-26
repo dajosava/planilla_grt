@@ -13,6 +13,19 @@ export function KioskLock({children}:{children:React.ReactNode}){
   root.classList.add("kiosk-locked");
   document.body.classList.add("kiosk-locked");
 
+  // Tras un deploy, skipWaiting + clientsClaim activan el SW nuevo sin recargar.
+  // Sin reload, fetch/Server Actions pueden quedar colgados hasta un ciclo de Wi‑Fi
+  // (que dispara reloadOnOnline). Aquí recargamos una vez al cambiar el controlador.
+  let swReloading=false;
+  const onControllerChange=()=>{
+   if(swReloading)return;
+   swReloading=true;
+   window.location.reload();
+  };
+  if("serviceWorker" in navigator){
+   navigator.serviceWorker.addEventListener("controllerchange",onControllerChange);
+  }
+
   const here=()=>`${window.location.pathname}${window.location.search}${window.location.hash}`;
 
   // Trampa de historial: el gesto atrás/adelante (swipe) no sale de marcación/operaciones.
@@ -77,6 +90,9 @@ export function KioskLock({children}:{children:React.ReactNode}){
   return ()=>{
    root.classList.remove("kiosk-locked");
    document.body.classList.remove("kiosk-locked");
+   if("serviceWorker" in navigator){
+    navigator.serviceWorker.removeEventListener("controllerchange",onControllerChange);
+   }
    window.removeEventListener("popstate",onPopState);
    document.removeEventListener("touchstart",onTouchStart,true);
    document.removeEventListener("touchmove",onTouchMove,true);

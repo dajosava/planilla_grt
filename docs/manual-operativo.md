@@ -107,7 +107,7 @@ Además, con red reporta **presencia** a la base (~cada 60 s). En el **header de
 - **Reloj sin señal** — pasó más de ~90 s sin reporte (Wi‑Fi / tablet / PWA)  
 - **Reloj sin datos** — aún no hay reportes (migración o tablet no abierta)
 
-No hace falta apagar/encender el Wi‑Fi en condiciones normales. Tras un deploy, conviene **recargar una vez** la PWA de marcación (no reinstalar el ícono).
+No hace falta apagar/encender el Wi‑Fi. Tras un deploy, la PWA de marcación **se recarga sola** cuando el service worker nuevo toma el control (no hace falta reinstalar el ícono).
 
 Detalle técnico: `docs/marcacion-offline.md`.
 
